@@ -475,20 +475,21 @@ function renderCard() {
   }
   const [key, x, y, ti, own, res, imp, units, riv] = h;
   const pts = hexPts(x, y, D.R); hlU.setAttribute('points', pts); hlP.setAttribute('points', pts); hl.style.display = '';
-  const city = D.cities[key];
+  const on = id => box[id].checked;
+  const city = on('cities') ? D.cities[key] : null;
   const title = city ? city[0] : D.terr[ti];
   const rows = [];
   if (city) rows.push(['Owner', OWNERS[city[1]][0] + (city[2] ? ` · pop ${city[2]}` : '')]);
   rows.push(['Terrain', D.terr[ti]]);
-  if (own && !city) rows.push(['Territory', OWNERS[own][0]]);
-  if (riv) rows.push(['River', riv === 1 ? 'On 1 side' : `On ${riv} sides`]);
-  if (res) rows.push(['Resource', res]);
-  if (imp) rows.push(['Improvement', imp]);
-  if (TAC.choke.has(key)) rows.push(['Choke point', 'Narrow gap beside mountains']);
-  if (D.siege[key]) rows.push(['Siege hill', 'Within 2 hexes of ' + D.siege[key].join(' and ')]);
-  if (TAC.cross[key]) rows.push(['River crossing', [...new Set(TAC.cross[key])].join('; ')]);
+  if (own && !city && on('borders')) rows.push(['Territory', OWNERS[own][0]]);
+  if (riv && on('rivers')) rows.push(['River', riv === 1 ? 'On 1 side' : `On ${riv} sides`]);
+  if (res && on('res')) rows.push(['Resource', res]);
+  if (imp && on('imp')) rows.push(['Improvement', imp]);
+  if (on('chokes') && TAC.choke.has(key)) rows.push(['Choke point', 'Narrow gap beside mountains']);
+  if (on('chokes') && D.siege[key]) rows.push(['Siege hill', 'Within 2 hexes of ' + D.siege[key].join(' and ')]);
+  if (on('chokes') && TAC.cross[key]) rows.push(['River crossing', [...new Set(TAC.cross[key])].join('; ')]);
   let uHTML = '';
-  if (units) {
+  if (units && on('units')) {
     const cnt = new Map();
     for (const u of units.split('|')) cnt.set(u, (cnt.get(u) || 0) + 1);
     uHTML = `<div class="units">${[...cnt].map(([u, n]) => { const [o, t] = u.split(':'); return `<div class="unit"><span class="dot" style="background:${OWNERS[o][1]}"></span>${n > 1 ? n + ' × ' : ''}${esc(t)} <span style="color:var(--muted)">· ${OWNERS[o][0]}</span></div>`; }).join('')}</div>`;
