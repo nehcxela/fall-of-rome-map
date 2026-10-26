@@ -469,7 +469,7 @@ function legendHTML() {
     <div class="row">${ico.siege}Siege hill: within 2 hexes of an enemy city, with line of sight</div>
     <div class="row">${ico.choke}Choke point: pass between mountains</div>
     <div class="row">${ico.cross}River crossing on a planned route</div>` : '';
-  return tac || plan ? `<div class="legend">${tac}${plan}</div>` : '';
+  return plan ? `<div class="legend">${plan}</div>` : '';
 }
 function renderCard() {
   const h = cur;
