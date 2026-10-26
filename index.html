@@ -235,7 +235,7 @@ dd { margin: 0; font-size: .86rem; min-width: 0; }
     </div>
   </section>
   <section id="uu" class="sheet" hidden aria-label="Special units">
-    <div class="army-head"><h2>Special units</h2><p>Each civilization's unique units, as described on the Civilization Wiki (Fandom). Numbers appear only where the wiki gives them. Six of these pages describe the regular game version; the scenario version may differ slightly.</p><button id="uuClose" class="btn">Close</button></div>
+    <div class="army-head"><h2>Special units</h2><p>Each civilization's unique units, from the Civilization Wiki (Fandom). Numbers appear only where the wiki gives them. Six of these pages describe the regular game version; the scenario version may differ slightly.</p><button id="uuClose" class="btn">Close</button></div>
     <div class="uu-grid" id="uuGrid"></div>
   </section>
   <section id="army" hidden aria-label="Starting armies">
@@ -510,14 +510,15 @@ const UU = [
   ['E', [['Legion', 'Swordsman', ['Needs Iron'], ['Stronger than the Swordsman and Pikeman', 'Can build roads and forts, so it doubles as a worker'], 'Legion_(Civ5)', 1],
          ['Dromon', 'Trireme', ['Combat 8', 'Ranged 10'], ['Ranged "Greek fire" attack', '+50% against naval units', 'Can\'t melee attack', 'Can\'t enter deep ocean'], 'Dromon_(Civ5)', 1],
          ['Cataphract', 'Horseman', ['Combat 15 (vs 12)', 'Movement −1', 'Needs Horses'], ['Can move after attacking', 'Smaller penalty attacking cities (25%)', 'Gets defensive terrain bonuses'], 'Cataphract_(Civ5)', 1]]],
-  ['S', [['Clibanarii', 'Horseman', ['Combat 16 (vs 12)', 'Movement 3 (vs 4)', 'Needs Horses'], ['Starts with Blitz: attacks twice a turn', 'Can move after attacking', 'No penalty attacking cities', 'Still weak against spearmen'], 'Clibanarii_(Civ5)', 0]]],
-  ['V', [['Axeman', 'Swordsman', ['No Iron needed'], ['Higher combat strength than the Swordsman', 'Starts with Charge: bonus against damaged units'], 'Axeman_(Civ5)', 0],
-         ['Trihemiolia', 'Trireme', [], ['Stronger and faster than the Trireme; melee ship', 'Starts with Supply: heals outside friendly land', 'Can capture enemy ships', 'Coastal tiles only'], 'Trihemiolia_(Civ5)', 0]]],
+  ['S', [['Clibanarii', 'Horseman', ['Combat 16 (vs 12)', 'Moves 3 (vs 4)', 'Cost 50', 'Needs Horses'], ['Starts with Blitz: attacks twice a turn', 'Can move after attacking', 'No penalty attacking cities', 'Still weak against spearmen'], 'Clibanarii_(Civ5)', 0]]],
+  ['V', [['Axeman', 'Swordsman', ['Combat 15', 'Moves 2', 'Cost 50', 'No Iron needed'], [ 'Starts with Charge: bonus against damaged units'], 'Axeman_(Civ5)', 0],
+         ['Trihemiolia', 'Trireme', ['Combat 13', 'Moves 4', 'Cost 30'], ['Melee ship, stronger and faster than the Trireme', 'Starts with Supply: heals outside friendly land', 'Can capture enemy ships', 'Coastal tiles only'], 'Trihemiolia_(Civ5)', 0]]],
   ['C', [['Pictish Warrior', 'Spearman', [], ['No movement cost to pillage', '+20% fighting outside friendly land', 'No bonus against mounted units', 'Earns Faith from kills'], 'Pictish_Warrior_(Civ5)', 1]]],
-  ['F', [['Seaxman', 'Swordsman', ['No Iron needed'], ['Higher combat strength than the Swordsman', 'Starts with Amphibious: no penalty attacking from the sea or across rivers'], 'Seaxman_(Civ5)', 0]]],
-  ['G', [['Gadrauht', 'Swordsman', ['No Iron needed'], ['Slightly higher combat strength than the Swordsman', 'Moves along enemy roads as if they were its own'], 'Gadrauht_(Civ5)', 0]]],
+  ['F', [['Seaxman', 'Swordsman', ['Combat 15', 'Moves 2', 'Cost 50', 'No Iron needed'], ['Starts with Amphibious: no penalty attacking from the sea or across rivers'], 'Seaxman_(Civ5)', 0]]],
+  ['G', [['Gadrauht', 'Swordsman', ['Combat 15', 'Moves 2', 'Cost 50', 'No Iron needed'], ['Moves along enemy roads as if they were its own'], 'Gadrauht_(Civ5)', 0]]],
   ['H', [['Horse Archer', 'Chariot Archer', ['Combat 7 (vs 6)', 'No Horses needed'], ['Starts with Accuracy I: +15% ranged against units in open terrain', 'No rough-terrain movement penalty', 'Can\'t melee attack', 'No defensive terrain bonuses'], 'Horse_Archer_(Civ5)', 1],
-         ['Battering Ram', 'Spearman', [], ['+300% against cities and can only attack cities', 'Starts with Cover I: +33% defense against ranged attacks', '−33% on defense, no defensive terrain bonuses', 'No bonus against mounted units', '−1 sight'], 'Battering_Ram_(Civ5)', 1]]],
+         ['Battering Ram', 'Spearman', [], ['+300% against cities and can only attack cities', 'Starts with Cover I: +33% defense against ranged attacks', '−33% on defense, no defensive terrain bonuses', 'No bonus against mounted units', '−1 sight'], 'Battering_Ram_(Civ5)', 1],
+         ['Scourge of God', 'nothing (Attila\'s unit)', ['Moves 6', 'Faith cost 1000'], ['+15% combat to all your land units within 2 tiles', 'Heals adjacent units an extra 20 HP per turn'], 'Scourge_of_God_(unit)_(Civ5)', 0, 'Attila']]],
 ];
 function buildUU() {
   const cnt = {};
@@ -525,8 +526,8 @@ function buildUU() {
   document.getElementById('uuGrid').innerHTML = UU.map(([o, units]) => {
     const [name, col] = OWNERS[o];
     return `<div class="civ" style="--civ:${col}"><h3><span class="dot" style="background:${col}"></span>${name}</h3>
-      ${units.map(([n, rep, chips, ab, page, base]) => {
-        const c = cnt[o + ':' + n] || 0;
+      ${units.map(([n, rep, chips, ab, page, base, mapName]) => {
+        const c = cnt[o + ':' + (mapName || n)] || 0;
         return `<div class="uu"><div class="uu-name"><b>${esc(n)}</b><span>replaces ${esc(rep)}${c ? ` · ${c} on the map at start` : ''}</span></div>
           ${chips.length ? `<div class="chips">${chips.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
           <ul>${ab.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
