@@ -531,7 +531,15 @@ function measureCard() {
   const d = hexDist(mA[0], mB[0]);
   card.innerHTML = `<div class="eyebrow">Measure</div><h2>${d} hex${d === 1 ? '' : 'es'}</h2>
     <dl><dt>From</dt><dd>${esc(nm(mA))} <span class="coord">${showKey(mA[0])}</span></dd><dt>To</dt><dd>${esc(nm(mB))} <span class="coord">${showKey(mB[0])}</span></dd>
-    <dt>Siege range</dt><dd>${d <= 2 ? 'In range (2 hexes or less)' : 'Out of range for catapults and ballistae'}</dd>
+    <dt>Siege range</dt><dd>${(() => {
+      if (d > 2) return 'Out of range for catapults and ballistae';
+      if (d <= 1) return 'In range (next to it)';
+      // line of sight from the first hex: hills see over forest and hills; flat ground doesn't
+      const hillShooter = mA[3] >= 5 && mA[3] <= 9, blocks = t => hillShooter ? (t === 9 || t === 10) : [4, 5, 6, 7, 8, 9, 10].includes(t);
+      const mids = nbKeys(mA[0]).filter(k => nbKeys(mB[0]).includes(k) && byKey[k]);
+      return mids.some(k => !blocks(byKey[k][3])) ? 'In range (2 hexes) with line of sight'
+        : `2 hexes, but no line of sight: ${[...new Set(mids.map(k => D.terr[byKey[k][3]].toLowerCase()))].join(' and ')} in the way`;
+    })()}</dd>
     ${(() => {
       const f = march(mA[0], mB[0], 2), h = march(mA[0], mB[0], 4);
       if (!f) return '<dt>March</dt><dd>No land route (water or mountains in the way)</dd></dl>';
