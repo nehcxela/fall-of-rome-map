@@ -657,10 +657,10 @@ const REG = [
   ['Spearman', ['Combat 11', 'Moves 2', 'Cost 56'], ['First melee unit after the Warrior; a little stronger and more expensive', '+50% against mounted units'], 'Spearman_(Civ5)'],
   ['Composite Bowman', ['Combat 7', 'Ranged 11', 'Range 2', 'Moves 2', 'Cost 75'], ['Classical-era ranged unit', 'Can\'t melee attack', 'Upgrades from the Archer'], 'Composite_Bowman_(Civ5)'],
   ['Horseman', ['Combat 12', 'Moves 4', 'Cost 75', 'Needs Horses'], ['Fast mounted unit'], 'Horseman_(Civ5)'],
-  ['Catapult', [], ['Siege unit for attacking cities'], 'Catapult_(Civ5)'],
-  ['Trireme', [], ['Early melee ship', 'Can\'t enter deep ocean'], 'Trireme_(Civ5)'],
-  ['Worker', [], ['Builds farms, mines and other improvements, and roads', 'Clears forest, jungle and marsh; repairs pillaged tiles', 'Roads and forts can go outside your borders', 'Can\'t defend itself; if captured, it can be taken back'], 'Worker_(Civ5)'],
-  ['Great General', [], ['Combat bonus to nearby units', 'Can build a citadel'], 'Great_General_(Civ5)'],
+  ['Catapult', ['Combat 7', 'Ranged 8', 'Range 2', 'Moves 2', 'Cost 75'], ['Siege unit of the Classical era'], 'Catapult_(Civ5)'],
+  ['Trireme', ['Combat 10', 'Moves 4', 'Cost 45'], ['Naval melee unit of the Ancient era', 'Can\'t enter deep ocean'], 'Trireme_(Civ5)'],
+  ['Worker', ['Moves 2', 'Cost 70'], ['Builds farms, mines and other improvements, and roads', 'Clears forest, jungle and marsh; repairs pillaged tiles', 'Roads and forts can go outside your borders', 'Can\'t defend itself; if captured, it can be taken back'], 'Worker_(Civ5)'],
+  ['Great General', [], ['+15% combat to all your land units within 2 tiles', 'Can plant a citadel (the guides use one at Casta Regina)'], 'Great_General_(Civ5)'],
 ];
 function buildReg() {
   const by = {};
