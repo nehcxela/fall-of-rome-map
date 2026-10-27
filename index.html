@@ -381,6 +381,7 @@ for (const [id, label, on, toggle] of LAYERS) {
 }
 function applyLayers() {
   for (const id in box) imgs[id].hidden = !box[id].checked;
+  document.getElementById('jump').hidden = !box.cities.checked;
   veil.hidden = !box.campaign.checked;
   document.getElementById('turns').hidden = !box.campaign.checked;
   document.body.classList.toggle('turns-open', box.campaign.checked);
