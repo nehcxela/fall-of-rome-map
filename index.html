@@ -820,7 +820,6 @@ function showTurn(i, keepView) {
     c.parentElement.classList.toggle('done', c.checked); saveProg(); updateProgress();
   });
   PROG.turn = curTurn; saveProg();
-  if (planOn || box.campaign.checked) { try { history.replaceState(null, '', '#turn-' + e.t); } catch (err) {} }
   updateProgress();
   document.querySelectorAll('.tp-side button').forEach(b => b.onclick = () => {
     const i = +b.dataset.i; curStep = curStep === i ? null : i;
@@ -879,7 +878,7 @@ Promise.resolve(window.__TP).then(t => {
   curTurn = want >= 0 ? want : 0;
   if (PROG.game != null) document.getElementById('gameTurn').value = PROG.game;
   updateProgress();
-  if (m && want >= 0) { box.campaign.checked = true; applyLayers(); markPreset(); }
+  if (m && want >= 0) { box.campaign.checked = true; applyLayers(); markPreset(); try { history.replaceState(null, '', location.pathname + location.search); } catch (err) {} }
   else showTurn(curTurn, true);
 }).catch(() => { document.getElementById('tTitle').textContent = 'The turn plan didn\'t load. Reload the page to try again.'; });
 // sharp badges: each unit, resource and improvement is its own high-resolution picture
