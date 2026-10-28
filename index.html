@@ -561,7 +561,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && measureOn) setMeasu
 function tap(e) {
   if (measureOn) {
     const h = nearest(...toMap(e)); if (!h) return;
-    if (h[3] === 10) { const hint = card.querySelector('.hint'); if (hint) hint.textContent = 'Mountains can\'t be picked; no unit can stand there. Tap another hex.'; return; }
+    if (h[3] === 10 || h[3] === 14) { const hint = card.querySelector('.hint'); if (hint) hint.textContent = (h[3] === 10 ? 'Mountains' : 'Deep ocean') + ' can\'t be picked; no unit can stand there. Tap another hex.'; return; }
     if (!mA || mB) { mA = h; mB = null; mPath = null; } else { mB = h; const f = march(mA[0], mB[0], 2); mPath = f ? f.path : null; }
     drawMeasure(); measureCard(); return;
   }
