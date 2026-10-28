@@ -487,9 +487,11 @@ function nbKeys(k) {
   return dd.map(([a, b]) => `${r + a},${q + b}`);
 }
 const ROUGH = new Set([4, 5, 6, 7, 8, 9, 11]);   // forest, all hills, forested hills, marsh
-function march(a, b, M) {
+const EMB = 2;   // embarked units move 2 on coast; embarking or landing uses the rest of the turn
+function march(a, b, M, embark) {
   if (!ROADSET) { ROADSET = new Set(D.roads.concat(Object.keys(D.cities))); RIVSET = new Set(D.riv.map(([x, y]) => [x, y].sort().join('|'))); }
-  const pass = k => { const h = byKey[k]; return h && h[3] !== 10 && h[3] !== 13 && h[3] !== 14; };
+  const wet = k => byKey[k][3] === 13;
+  const pass = k => { const h = byKey[k]; return h && h[3] !== 10 && h[3] !== 14 && (embark || h[3] !== 13); };
   if (!pass(a) || !pass(b)) return null;
   const best = new Map([[a, [0, M]]]), prev = new Map(), heap = [[0, -M, a]];
   const better = (x, y) => x[0] < y[0] || (x[0] === y[0] && x[1] > y[1] + 1e-9);
@@ -500,11 +502,15 @@ function march(a, b, M) {
     if (k === b) break;
     for (const n of nbKeys(k)) {
       if (!pass(n)) continue;
-      let [tt, mp] = cur; if (mp <= 1e-9) { tt += 1; mp = M; }
-      const river = RIVSET.has([k, n].sort().join('|'));
-      const road = ROADSET.has(k) && ROADSET.has(n) && !river;
-      const cost = road ? 1 / 3 : (ROUGH.has(byKey[n][3]) ? 2 : 1);
-      mp = river ? 0 : Math.max(0, mp - cost);
+      let [tt, mp] = cur; if (mp <= 1e-9) { tt += 1; mp = wet(k) ? EMB : M; }
+      if (wet(k) !== wet(n)) mp = 0;                       // embark or land: ends the move
+      else if (wet(n)) mp = Math.max(0, mp - 1);
+      else {
+        const river = RIVSET.has([k, n].sort().join('|'));
+        const road = ROADSET.has(k) && ROADSET.has(n) && !river;
+        const cost = road ? 1 / 3 : (ROUGH.has(byKey[n][3]) ? 2 : 1);
+        mp = river ? 0 : Math.max(0, mp - cost);
+      }
       const st = [tt, mp], old = best.get(n);
       if (!old || better(st, old)) { best.set(n, st); prev.set(n, k); heap.push([tt, -mp, n]); }
     }
@@ -541,12 +547,22 @@ function measureCard() {
         : `2 hexes, but no line of sight: ${[...new Set(mids.map(k => D.terr[byKey[k][3]].toLowerCase()))].join(' and ')} in the way`;
     })()}</dd>
     ${(() => {
-      const f = march(mA[0], mB[0], 2), h = march(mA[0], mB[0], 4);
-      if (!f) return '<dt>March</dt><dd>No land route (water or mountains in the way)</dd></dl>';
       const tt = n => `${n} turn${n === 1 ? '' : 's'}`;
-      return `<dt>Foot (2 moves)</dt><dd>${tt(f.turns)} · ${f.path.length - 1} hexes along the yellow route</dd>
-        <dt>Mounted (4 moves)</dt><dd>${tt(h.turns)}</dd></dl>
-        <p class="hint">Counts roads (⅓ move), hills, forest and marsh (2), and rivers (crossing ends the move). Ignores enemy units and zones of control.</p>`;
+      const fl = march(mA[0], mB[0], 2, false), hl = march(mA[0], mB[0], 4, false);
+      const fe = march(mA[0], mB[0], 2, true), he = march(mA[0], mB[0], 4, true);
+      const boats = p => p && p.path.some(k => byKey[k][3] === 13);
+      let out = '';
+      if (fl) out += `<dt>Foot (2 moves)</dt><dd>${tt(fl.turns)} by land · ${fl.path.length - 1} hexes</dd><dt>Mounted (4 moves)</dt><dd>${tt(hl.turns)} by land</dd>`;
+      else out += '<dt>By land</dt><dd>No land route; water or mountains in the way</dd>';
+      if (fe && boats(fe) && (!fl || fe.turns < fl.turns || he.turns < hl.turns)) {
+        out += `<dt>Embarking</dt><dd>Foot ${tt(fe.turns)}, mounted ${tt(he.turns)} along the coast</dd>`;
+        mPath = fl && fl.turns <= fe.turns ? fl.path : fe.path;
+      } else mPath = fl ? fl.path : (fe ? fe.path : null);
+      if (!fl && !fe) out += '<dt>Embarking</dt><dd>No route even by sea; deep ocean in the way</dd>';
+      const viaSea = mPath && boats({ path: mPath });
+      drawMeasure();
+      return out + `</dl>${viaSea ? '<p class="hint" style="color:var(--fg)">The yellow route embarks. Embarked units can\'t defend themselves, so escort them with ships, and watch for Vandal trihemiolias.</p>' : ''}
+        <p class="hint">Counts roads (⅓ move), hills, forest and marsh (2), rivers (crossing ends the move), and embarking (2 moves on coast; boarding or landing ends the move). Ignores enemy units and zones of control.</p>`;
     })()}
     <p class="hint">Tap another hex to start a new measurement.</p>`;
 }
@@ -562,7 +578,7 @@ function tap(e) {
   if (measureOn) {
     const h = nearest(...toMap(e)); if (!h) return;
     if (h[3] === 10 || h[3] === 14) { const hint = card.querySelector('.hint'); if (hint) hint.textContent = (h[3] === 10 ? 'Mountains' : 'Deep ocean') + ' can\'t be picked; no unit can stand there. Tap another hex.'; return; }
-    if (!mA || mB) { mA = h; mB = null; mPath = null; } else { mB = h; const f = march(mA[0], mB[0], 2); mPath = f ? f.path : null; }
+    if (!mA || mB) { mA = h; mB = null; mPath = null; } else { mB = h; mPath = null; }
     drawMeasure(); measureCard(); return;
   }
   const h = nearest(...toMap(e));
