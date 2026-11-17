@@ -983,7 +983,17 @@ Promise.resolve(window.__MD).then(d => {
   let VX, VY, VZ, TRI, TCOL, TNORM, NV, NT;
   function buildMesh() {
     const R = D.R, vmap = new Map(), vx = [], vz = [], vsum = [], vcnt = [], vmax = [];
-    const cornerId = (x, z) => { const key = Math.round(x * 4) + ',' + Math.round(z * 4); let i = vmap.get(key); if (i === undefined) { i = vx.length; vmap.set(key, i); vx.push(x); vz.push(z); vsum.push(0); vcnt.push(0); vmax.push(0); } return i; };
+    // corners shared by neighbouring hexes may differ by a fraction of a pixel (rounded centres): merge anything within 2px
+    const cornerId = (x, z) => {
+      const cx = Math.round(x / 4), cz = Math.round(z / 4);
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+        const l = vmap.get((cx + dx) + ',' + (cz + dz)); if (!l) continue;
+        for (const i of l) if (Math.abs(vx[i] - x) < 2 && Math.abs(vz[i] - z) < 2) return i;
+      }
+      const i = vx.length; vx.push(x); vz.push(z); vsum.push(0); vcnt.push(0); vmax.push(0);
+      const k = cx + ',' + cz; if (vmap.has(k)) vmap.get(k).push(i); else vmap.set(k, [i]);
+      return i;
+    };
     const hexes = D.hexes, corners = [], cen = [];
     hexes.forEach((h, hi) => {
       const t = TT[h[3]] || TT[0], ids = [];
