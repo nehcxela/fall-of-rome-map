@@ -965,7 +965,7 @@ Promise.resolve(window.__MD).then(d => {
       if (mode === 'pan') {
         const k = scale(), c = Math.cos(cam.yaw), sn = Math.sin(cam.yaw);
         const vx = -dx / k, vz = dy / (k * Math.max(0.2, Math.sin(cam.pitch)));
-        cam.tx += vx * c + vz * sn; cam.tz += -vx * sn + vz * c;
+        cam.tx += vx * c + vz * sn; cam.tz += vx * sn - vz * c;
       } else { cam.yaw += dx * 0.006; cam.pitch = Math.max(0.2, Math.min(1.5, cam.pitch + dy * 0.005)); }
       redraw();
     });
@@ -982,19 +982,24 @@ Promise.resolve(window.__MD).then(d => {
   // Terrain mesh: every hex is six triangles (centre + two corners). Corner heights are shared, so slopes run smoothly from one hex into the next.
   let VX, VY, VZ, TRI, TCOL, TNORM, NV, NT;
   function buildMesh() {
-    const R = D.R, vmap = new Map(), vx = [], vz = [], vsum = [], vcnt = [];
-    const cornerId = (x, z) => { const key = Math.round(x * 4) + ',' + Math.round(z * 4); let i = vmap.get(key); if (i === undefined) { i = vx.length; vmap.set(key, i); vx.push(x); vz.push(z); vsum.push(0); vcnt.push(0); } return i; };
+    const R = D.R, vmap = new Map(), vx = [], vz = [], vsum = [], vcnt = [], vmax = [];
+    const cornerId = (x, z) => { const key = Math.round(x * 4) + ',' + Math.round(z * 4); let i = vmap.get(key); if (i === undefined) { i = vx.length; vmap.set(key, i); vx.push(x); vz.push(z); vsum.push(0); vcnt.push(0); vmax.push(0); } return i; };
     const hexes = D.hexes, corners = [], cen = [];
     hexes.forEach((h, hi) => {
       const t = TT[h[3]] || TT[0], ids = [];
-      for (let i = 0; i < 6; i++) { const id = cornerId(h[1] + R * COS[i], h[2] + R * SIN[i]); ids.push(id); vsum[id] += t[1]; vcnt[id]++; }
+      for (let i = 0; i < 6; i++) { const id = cornerId(h[1] + R * COS[i], h[2] + R * SIN[i]); ids.push(id); vsum[id] += t[1]; vcnt[id]++; if (t[1] > vmax[id]) vmax[id] = t[1]; }
       corners.push(ids);
       const hash = ((h[1] * 12.9898 + h[2] * 78.233) % 1 + 1) % 1;
-      cen.push(t[1] + t[2] * (0.85 + 0.3 * hash));
+      cen.push(t[1] + t[2] * (h[3] === 10 ? 0.65 + 0.7 * hash : 0.85 + 0.3 * hash));
     });
     const nv = vx.length, nh = hexes.length, TPH = 5, forest = h => h[3] === 4 || h[3] === 9, nTrees = hexes.filter(forest).length * TPH; NV = nv + nh + nTrees * 6;
     VX = new Float32Array(NV); VY = new Float32Array(NV); VZ = new Float32Array(NV);
-    for (let i = 0; i < nv; i++) { VX[i] = vx[i]; VZ[i] = vz[i]; VY[i] = vsum[i] / vcnt[i]; }
+    for (let i = 0; i < nv; i++) {
+      VX[i] = vx[i]; VZ[i] = vz[i];
+      const avg = vsum[i] / vcnt[i], mx = vmax[i], n = (Math.sin(vx[i] * 0.173 + vz[i] * 0.291) * 43758.5453) % 1;
+      // mountain foothills hold their height (broader mass); hills and mountains get lumpy
+      VY[i] = (mx >= 30 ? 0.45 * avg + 0.55 * mx : avg) + (mx >= 30 ? 13 : mx >= 14 ? 4 : 0) * n;
+    }
     NT = nh * 6 + nTrees * 5; TRI = new Uint32Array(NT * 3); TCOL = new Float32Array(NT * 3); TNORM = new Float32Array(NT * 3);
     const lx = -0.55, ly = 0.75, lz = -0.37, ll = Math.hypot(lx, ly, lz);
     hexes.forEach((h, hi) => {
@@ -1049,7 +1054,7 @@ Promise.resolve(window.__MD).then(d => {
     if (!PX || PX.length !== NV) { PX = new Float32Array(NV); PY = new Float32Array(NV); PD = new Float32Array(NV); }
     for (let i = 0; i < NV; i++) {
       const px = VX[i] - cam.tx, pz = VZ[i] - cam.tz, y = VY[i];
-      const x1 = px * cy - pz * sy, z1 = px * sy + pz * cy;
+      const x1 = px * cy + pz * sy, z1 = px * sy - pz * cy; // north at the top, east on the right
       const up = y * cp + z1 * sp, dep = D0 + z1 * cp - y * sp, k = k0 * D0 / Math.max(50, dep);
       PX[i] = W / 2 + x1 * k; PY[i] = H * 0.52 - up * k; PD[i] = dep;
     }
