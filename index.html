@@ -78,6 +78,12 @@ select {
 .chip input:focus-visible + span, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 #view { position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: grab; background: var(--bg); }
+
+#v3 { position: absolute; inset: 0; display: none; background: var(--bg); touch-action: none; cursor: grab; }
+#v3.on { display: block; }
+#v3 canvas { display: block; width: 100%; height: 100%; }
+#v3 .hint { position: absolute; left: 12px; bottom: 12px; font-size: .78rem; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; pointer-events: none; }
+#view.is3d #stage, #view.is3d .zoom { display: none; }
 #view.dragging { cursor: grabbing; }
 #stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 #stage img, #stage .veil, #stage svg { position: absolute; left: 0; top: 0; user-select: none; -webkit-user-drag: none; pointer-events: none; }
@@ -230,6 +236,7 @@ a.btn { text-decoration: none; display: inline-block; }
     <form id="hexForm" class="hexgo"><input id="hexIn" type="text" inputmode="numeric" placeholder="Go to hex 32,58" aria-label="Go to hex (row,column)" autocomplete="off"></form>
     <a id="guideBtn" class="btn" href="https://claude.ai/artifact/KfWCoXZyYWhARsLpFNGSFB" target="_blank" rel="noopener">Guide ↗</a>
     <button id="measBtn" class="btn" aria-pressed="false">Measure</button>
+    <button id="b3d" class="btn" aria-pressed="false" title="Raised-hex terrain view">3D</button>
     <button id="keyBtn" class="btn" aria-expanded="false" aria-controls="key">Key</button>
     <button id="armyBtn" class="btn" aria-expanded="false" aria-controls="army">Armies</button>
     <button id="uuBtn" class="btn" aria-expanded="false" aria-controls="uu">Special units</button>
@@ -928,5 +935,96 @@ Promise.resolve(window.__MD).then(d => {
 }).catch(() => { card.innerHTML = '<p class="hint">Hex details didn\'t load, so hovering shows nothing. The map itself still works; reload to try again.</p>'; });
 </script>
 
+<script>
+(function () {
+  // Raised-hex terrain view, drawn on a 2D canvas (no extra libraries): each hex is a column whose height follows its terrain.
+  const btn = document.getElementById('b3d'), view = document.getElementById('view');
+  const TT = [['#96ba5c', 12], ['#ceb87a', 12], ['#f0e2b0', 12], ['#d6dae2', 12], ['#4a7a3c', 14], ['#86aa4c', 34], ['#bea86a', 34], ['#e2d4a0', 34], ['#c6cad2', 34], ['#3c6a30', 36], ['#8c8884', 80], ['#78aa82', 10], ['#f0e2b0', 12], ['#76bad4', 5], ['#24427a', 1]];
+  const hexRGB = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  let box = null, cv = null, ctx = null, cells = null, cam = null, W = 0, H = 0, dpr = 1, pending = false;
+  const COS = [], SIN = [];
+  for (let i = 0; i < 6; i++) { COS.push(Math.cos((30 + 60 * i) * Math.PI / 180)); SIN.push(Math.sin((30 + 60 * i) * Math.PI / 180)); }
+  function setup() {
+    box = document.createElement('div'); box.id = 'v3';
+    cv = document.createElement('canvas'); box.appendChild(cv);
+    box.insertAdjacentHTML('beforeend', '<div class="hint">Drag to rotate and tilt · scroll to zoom · right-drag or Shift-drag to pan · double-click to reset</div>');
+    view.appendChild(box); ctx = cv.getContext('2d');
+    cells = D.hexes.map(h => { const t = TT[h[3]] || TT[0], c = hexRGB(t[0]), v = 0.96 + ((h[1] * 7 + h[2] * 13) % 9) / 100; return { x: h[1], z: h[2], y: t[1], c: c.map(u => Math.min(255, u * v)) }; });
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (const c of cells) { x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); z0 = Math.min(z0, c.z); z1 = Math.max(z1, c.z); }
+    cam = { yaw: 0, pitch: 0.95, zoom: 1, tx: (x0 + x1) / 2, tz: (z0 + z1) / 2, span: x1 - x0, ox: 0, oz: 0 };
+    cam.home = { yaw: 0, pitch: 0.95, zoom: 1, tx: cam.tx, tz: cam.tz };
+    const pts = new Map(); let mode = null, lx = 0, ly = 0, pinch = 0;
+    cv.addEventListener('contextmenu', e => e.preventDefault());
+    cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, e); lx = e.clientX; ly = e.clientY; mode = (e.button === 2 || e.shiftKey) ? 'pan' : 'rot'; if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); } });
+    cv.addEventListener('pointermove', e => {
+      if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, e);
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); if (pinch) zoomBy(d / pinch); pinch = d; return; }
+      const dx = e.clientX - lx, dy = e.clientY - ly; lx = e.clientX; ly = e.clientY;
+      if (mode === 'pan') {
+        const k = scale(), c = Math.cos(cam.yaw), sn = Math.sin(cam.yaw);
+        const vx = -dx / k, vz = dy / (k * Math.max(0.2, Math.sin(cam.pitch)));
+        cam.tx += vx * c + vz * sn; cam.tz += -vx * sn + vz * c;
+      } else { cam.yaw += dx * 0.006; cam.pitch = Math.max(0.2, Math.min(1.5, cam.pitch + dy * 0.005)); }
+      redraw();
+    });
+    const up = e => { pts.delete(e.pointerId); pinch = 0; };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    cv.addEventListener('wheel', e => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+    cv.addEventListener('dblclick', () => { Object.assign(cam, cam.home); redraw(); });
+    new ResizeObserver(resize).observe(box);
+  }
+  const scale = () => Math.min(W / (cam.span * 1.12), H / (cam.span * 0.56)) * cam.zoom;
+  function zoomBy(f) { cam.zoom = Math.max(0.5, Math.min(14, cam.zoom * f)); redraw(); }
+  function resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); W = box.clientWidth; H = box.clientHeight; if (!W || !H) return; cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px'; redraw(); }
+  function redraw() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } }
+  function draw() {
+    if (!W || !H) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = getComputedStyle(view).backgroundColor; ctx.fillRect(0, 0, W, H);
+    const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    const D0 = cam.span * 2.4, k0 = scale();
+    const proj = (x, y, z) => {
+      const px = x - cam.tx, pz = z - cam.tz;
+      const x1 = px * cy - pz * sy, z1 = px * sy + pz * cy;
+      const up = y * cp + z1 * sp, dep = D0 + z1 * cp - y * sp;
+      const k = k0 * D0 / Math.max(50, dep);
+      return [W / 2 + x1 * k, H * 0.52 - up * k, dep];
+    };
+    // back to front
+    const order = [];
+    for (const c of cells) { const px = c.x - cam.tx, pz = c.z - cam.tz; c.d = (px * sy + pz * cy); order.push(c); }
+    order.sort((a, b) => b.d - a.d);
+    const R = D.R;
+    ctx.lineJoin = 'round';
+    for (const c of order) {
+      const top = [], bot = [];
+      for (let i = 0; i < 6; i++) { const vx = c.x + R * COS[i], vz = c.z + R * SIN[i]; top.push(proj(vx, c.y, vz)); bot.push(proj(vx, 0, vz)); }
+      const [r, g, b] = c.c;
+      for (let i = 0; i < 6; i++) {
+        const nx = Math.cos((60 * i + 60) * Math.PI / 180), nzz = Math.sin((60 * i + 60) * Math.PI / 180);
+        const vz = nx * sy + nzz * cy; // normal's depth component after yaw
+        if (vz >= -0.01) continue; // faces away
+        const vx = nx * cy - nzz * sy, sh = 0.62 + 0.18 * (-vx);
+        const j = (i + 1) % 6;
+        ctx.beginPath(); ctx.moveTo(top[i][0], top[i][1]); ctx.lineTo(top[j][0], top[j][1]); ctx.lineTo(bot[j][0], bot[j][1]); ctx.lineTo(bot[i][0], bot[i][1]); ctx.closePath();
+        ctx.fillStyle = `rgb(${r * sh | 0},${g * sh | 0},${b * sh | 0})`; ctx.fill();
+      }
+      ctx.beginPath(); ctx.moveTo(top[0][0], top[0][1]); for (let i = 1; i < 6; i++) ctx.lineTo(top[i][0], top[i][1]); ctx.closePath();
+      ctx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`; ctx.fill();
+      ctx.strokeStyle = 'rgba(30,24,40,.22)'; ctx.lineWidth = 0.6; ctx.stroke();
+    }
+  }
+  btn.addEventListener('click', () => {
+    const want = btn.getAttribute('aria-pressed') !== 'true';
+    if (want) {
+      if (!D) return;
+      if (!box) setup();
+      box.classList.add('on'); view.classList.add('is3d'); btn.textContent = '2D'; resize();
+    } else { btn.textContent = '3D'; box.classList.remove('on'); view.classList.remove('is3d'); }
+    btn.setAttribute('aria-pressed', want ? 'true' : 'false');
+  });
+})();
+</script>
 </body>
 </html>
