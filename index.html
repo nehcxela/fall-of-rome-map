@@ -954,7 +954,18 @@ Promise.resolve(window.__MD).then(d => {
   for (const k in TXA) { const im = new Image(); im.onload = () => { if (G && G.w.set === k) { G.w.setTex(k); upload(); redraw(); } }; im.src = TXA[k]; TXI[k] = im; }
   function swatches(set) {
     if (TXP[set]) return TXP[set]; const im = TXI[set]; if (!im || !im.naturalWidth) return null;
-    const p = {}; TXK.forEach((k, i) => { const c = document.createElement('canvas'); c.width = c.height = 128; c.getContext('2d').drawImage(im, (i % 4) * 128, Math.floor(i / 4) * 128, 128, 128, 0, 0, 128, 128); p[k] = c.getContext('2d').createPattern(c, 'repeat'); });
+    const p = {}; TXK.forEach((k, i) => {
+      // seamless (mirrored 2x2) tile, then keep only fine detail around its average colour so hexes don't look blotchy
+      const m = document.createElement('canvas'); m.width = m.height = 256; const mx = m.getContext('2d');
+      for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) { mx.save(); mx.translate(a * 256, b * 256); mx.scale(a ? -1 : 1, b ? -1 : 1); mx.drawImage(im, (i % 4) * 128 + 4, Math.floor(i / 4) * 128 + 4, 120, 120, 0, 0, 128, 128); mx.restore(); }
+      const big = document.createElement('canvas'); big.width = big.height = 512; const bx = big.getContext('2d'); for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) bx.drawImage(m, a * 256, b * 256);
+      const bl = document.createElement('canvas'); bl.width = bl.height = 256; const lx = bl.getContext('2d'); lx.filter = 'blur(9px)'; lx.drawImage(big, -128, -128);
+      const d = mx.getImageData(0, 0, 256, 256), e = lx.getImageData(0, 0, 256, 256), n = d.data.length / 4; let r = 0, g_ = 0, b_ = 0;
+      for (let q = 0; q < d.data.length; q += 4) { r += e.data[q]; g_ += e.data[q + 1]; b_ += e.data[q + 2]; } r /= n; g_ /= n; b_ /= n;
+      for (let q = 0; q < d.data.length; q += 4) { const dl = Math.max(-26, Math.min(26, ((d.data[q] - e.data[q]) + (d.data[q + 1] - e.data[q + 1]) + (d.data[q + 2] - e.data[q + 2])) / 3 * 0.9)); d.data[q] = r + dl; d.data[q + 1] = g_ + dl; d.data[q + 2] = b_ + dl; }
+      mx.putImageData(d, 0, 0);
+      const c = document.createElement('canvas'); c.width = c.height = 128; c.getContext('2d').drawImage(m, 0, 0, 128, 128); p[k] = c.getContext('2d').createPattern(c, 'repeat');
+    });
     return TXP[set] = p;
   }
   let box = null, cv = null, gl = null, G = null, cam = null, W = 0, H = 0, dpr = 1, pending = false;
