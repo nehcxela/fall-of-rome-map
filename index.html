@@ -989,7 +989,7 @@ Promise.resolve(window.__MD).then(d => {
           const dx = (x - hx[i]) / R, dz = (z - hz[i]) / R, d2 = dx * dx + dz * dz; if (d2 > 3.6) continue;
           const w = Math.exp(-d2 * S2); let v = hg[i];
           switch (hk[i]) {
-            case 1: v += 2.5 * Math.exp(-d2 * 1.6); break;
+            case 1: v += (9 + 2 * ha[i]) * Math.exp(-d2 * 1.1) + 1.5 * Math.sin(dx * 3 + hb[i]) * Math.cos(dz * 3 - hb[i]); break;
             case 2: case 3: v += (20 + 7 * ha[i]) * Math.exp(-d2 * 2.2); break;
             case 4: {
               const A = 40 + 12 * ha[i], ox = 0.62 * Math.cos(hb[i]), oz = 0.62 * Math.sin(hb[i]);
@@ -1051,7 +1051,7 @@ Promise.resolve(window.__MD).then(d => {
     // ---- trees (the only faceted shapes)
     const tv = []; const L = [-0.5, 0.8, -0.35], ll = Math.hypot(...L);
     hexes.forEach((h, i) => {
-      if (hk[i] !== 1 && hk[i] !== 3) return;
+      return; // trees removed
       for (let k = 0; k < 5; k++) {
         const ang = (k / 5 + hash(h[1], h[2], 20 + k) * 0.18) * 6.2832, rad = R * (0.18 + 0.5 * hash(h[1], h[2], 30 + k)), px = h[1] + rad * Math.cos(ang), pz = h[2] + rad * Math.sin(ang);
         const r3 = hash(h[1], h[2], 40 + k), y0 = height(px, pz) - 0.5, ht = 13 + 6 * r3, br = 5.2 + 1.6 * r3, col = hexRGB(r3 > 0.5 ? '#2c5a2a' : '#356b30'), sh = 0.92 + 0.16 * hash(h[1], h[2], 50 + k);
