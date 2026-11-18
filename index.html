@@ -1004,13 +1004,22 @@ Promise.resolve(window.__MD).then(d => {
     const IDX = new Uint32Array((nx - 1) * (nz - 1) * 6); let q = 0;
     for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = i + j * nx, b = a + 1, c = a + nx, d = c + 1; IDX[q++] = a; IDX[q++] = c; IDX[q++] = b; IDX[q++] = b; IDX[q++] = c; IDX[q++] = d; }
     // ---- colour texture (flat hex colours with thin outlines)
-    const TW = 4096, TH = 2048, tc = document.createElement('canvas'); tc.width = TW; tc.height = TH; const t2 = tc.getContext('2d');
+    const TW = gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 8192 ? 6144 : 4096, TH = TW / 2, tc = document.createElement('canvas'); tc.width = TW; tc.height = TH; const t2 = tc.getContext('2d');
     const sx = TW / (x1 - x0), sz = TH / (z1 - z0); t2.fillStyle = '#24427a'; t2.fillRect(0, 0, TW, TH); t2.lineJoin = 'round';
     hexes.forEach((h, i) => {
       const c = hexRGB((TT[h[3]] || TT[0])[0]), v = 0.97 + hash(h[1], h[2], 9) * 0.06;
       t2.beginPath(); for (let k = 0; k < 6; k++) { const a = (30 + 60 * k) * Math.PI / 180, X = (h[1] + R * Math.cos(a) - x0) * sx, Z = (h[2] + R * Math.sin(a) - z0) * sz; k ? t2.lineTo(X, Z) : t2.moveTo(X, Z); } t2.closePath();
       t2.fillStyle = `rgb(${c[0] * v | 0},${c[1] * v | 0},${c[2] * v | 0})`; t2.fill(); t2.strokeStyle = 'rgba(25,22,40,.20)'; t2.lineWidth = 1.2; t2.stroke();
     });
+    // rivers and roads are the 2D layer images painted on top of the hex colours (they follow the ground); they obey the Rivers / Roads switches
+    const out = document.createElement('canvas'); out.width = TW; out.height = TH; const o2 = out.getContext('2d');
+    const lay = {}; for (const id of ['rivers', 'roads']) { const im = new Image(); im.onload = () => { lay[id] = im; if (G && G.w === world) { world.paint(); upload(); redraw(); } }; im.src = window.__IMG[id]; }
+    const world = {};
+    world.paint = () => {
+      o2.drawImage(tc, 0, 0);
+      for (const id of ['rivers', 'roads']) { const c = document.getElementById('L-' + id); if (lay[id] && (!c || c.checked)) o2.drawImage(lay[id], -x0 * sx, -z0 * sz, 3848 * sx, 2308 * sz); }
+    };
+    world.paint();
     // ---- trees (the only faceted shapes)
     const tv = []; const L = [-0.5, 0.8, -0.35], ll = Math.hypot(...L);
     hexes.forEach((h, i) => {
@@ -1030,7 +1039,7 @@ Promise.resolve(window.__MD).then(d => {
         }
       }
     });
-    return { P, IDX, tc, tv: new Float32Array(tv), x0, x1, z0, z1, span: x1 - x0, zspan: z1 - z0 };
+    return Object.assign(world, { P, IDX, tc: out, tv: new Float32Array(tv), x0, x1, z0, z1, span: x1 - x0, zspan: z1 - z0 });
   }
 
   const VS = `#version 300 es
@@ -1048,6 +1057,7 @@ Promise.resolve(window.__MD).then(d => {
     const mk = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
     const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p;
   }
+  function upload() { gl.bindTexture(gl.TEXTURE_2D, G.tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, G.w.tc); gl.generateMipmap(gl.TEXTURE_2D); }
   function setup() {
     box = document.createElement('div'); box.id = 'v3'; cv = document.createElement('canvas'); box.appendChild(cv);
     box.insertAdjacentHTML('beforeend', '<div class="hint">Drag to rotate and tilt · scroll to zoom · right-drag or Shift-drag to pan · double-click to reset</div>');
@@ -1068,8 +1078,7 @@ Promise.resolve(window.__MD).then(d => {
     for (const [nm, off] of [['p', 0], ['n', 12], ['c', 24]]) { l = gl.getAttribLocation(G.pp, nm); if (l >= 0) { gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 36, off); } }
     G.nt = w.tv.length / 9;
     // texture
-    G.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, G.tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, w.tc); gl.generateMipmap(gl.TEXTURE_2D);
+    G.tex = gl.createTexture(); upload();
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     const an = gl.getExtension('EXT_texture_filter_anisotropic'); if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
@@ -1093,6 +1102,7 @@ Promise.resolve(window.__MD).then(d => {
     cv.addEventListener('wheel', e => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
     cv.addEventListener('dblclick', () => { Object.assign(cam, cam.home); redraw(); });
     new ResizeObserver(resize).observe(box);
+    for (const id of ['rivers', 'roads']) { const c = document.getElementById('L-' + id); if (c) c.addEventListener('change', () => { if (G) { G.w.paint(); upload(); redraw(); } }); }
   }
   const FOV = 35 * Math.PI / 180;
   const dist = () => { const t = Math.tan(FOV / 2), asp = W / H; return Math.max(G.w.span / (2 * t * asp), G.w.zspan * 0.85 / (2 * t)) * 1.08 / cam.zoom; };
