@@ -82,6 +82,14 @@ select {
 #v3 { position: absolute; inset: 0; display: none; background: var(--bg); touch-action: none; cursor: grab; }
 #v3.on { display: block; }
 #v3 canvas { display: block; width: 100%; height: 100%; }
+#view.is3d { --mp: clamp(250px, 44%, 480px); }
+#view.is3d #v3 { bottom: var(--mp); }
+#v3t { position: absolute; left: 0; right: 0; bottom: 0; height: var(--mp, 0); display: none; background: var(--bg); border-top: 1px solid var(--line); touch-action: none; cursor: grab; overflow: hidden; }
+#view.is3d #v3t { display: block; }
+#v3t canvas { display: block; }
+#v3t .tmh { position: absolute; left: 12px; top: 8px; font-size: .78rem; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; pointer-events: none; }
+#v3t .tmh b { color: var(--ink, inherit); }
+#v3t .tml { position: absolute; transform: translate(-50%, 0); font-size: .72rem; line-height: 1; white-space: nowrap; color: var(--ink, #222); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; pointer-events: none; }
 #v3 .hint { position: absolute; left: 12px; bottom: 12px; font-size: .78rem; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; pointer-events: none; }
 #v3 .tsel { position: absolute; right: 12px; bottom: 12px; font-size: .78rem; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; }
 #v3 .tsel select { font: inherit; color: inherit; background: transparent; border: 0; }
@@ -950,7 +958,7 @@ Promise.resolve(window.__MD).then(d => {
   const TXK = ["grass", "plains", "desert", "tundra", "forest", "forest_plains", "grass_hills", "plains_hills", "desert_hills", "tundra_hills", "forest_hills", "grass_forest_hills", "mountain", "mountain2", "marsh", "oasis"];
   // terrain index -> swatch names (alternatives are picked per hex)
   const TXMAP = [['grass'], ['plains'], ['desert'], ['tundra'], ['forest', 'forest_plains'], ['grass_hills'], ['plains_hills'], ['desert_hills'], ['tundra_hills'], ['forest_hills', 'grass_forest_hills'], ['mountain', 'mountain2'], ['marsh'], ['oasis'], null, null];
-  const TXI = {}, TXP = {};
+  const TXI = {}, TXP = {}, TXC = {};
   for (const k in TXA) { const im = new Image(); im.onload = () => { if (G && G.w.set === k) { G.w.setTex(k); upload(); redraw(); } }; im.src = TXA[k]; TXI[k] = im; }
   function swatches(set) {
     if (TXP[set]) return TXP[set]; const im = TXI[set]; if (!im || !im.naturalWidth) return null;
@@ -964,7 +972,7 @@ Promise.resolve(window.__MD).then(d => {
       for (let q = 0; q < d.data.length; q += 4) { r += e.data[q]; g_ += e.data[q + 1]; b_ += e.data[q + 2]; } r /= n; g_ /= n; b_ /= n;
       for (let q = 0; q < d.data.length; q += 4) { const dl = Math.max(-26, Math.min(26, ((d.data[q] - e.data[q]) + (d.data[q + 1] - e.data[q + 1]) + (d.data[q + 2] - e.data[q + 2])) / 3 * 0.9)); d.data[q] = r + dl; d.data[q + 1] = g_ + dl; d.data[q + 2] = b_ + dl; }
       mx.putImageData(d, 0, 0);
-      const c = document.createElement('canvas'); c.width = c.height = 128; c.getContext('2d').drawImage(m, 0, 0, 128, 128); p[k] = c.getContext('2d').createPattern(c, 'repeat');
+      const c = document.createElement('canvas'); c.width = c.height = 128; c.getContext('2d').drawImage(m, 0, 0, 128, 128); p[k] = c.getContext('2d').createPattern(c, 'repeat'); (TXC[set] = TXC[set] || {})[k] = c;
     });
     return TXP[set] = p;
   }
@@ -1165,13 +1173,220 @@ Promise.resolve(window.__MD).then(d => {
     gl.useProgram(G.pp); gl.uniformMatrix4fv(gl.getUniformLocation(G.pp, 'M'), false, M);
     gl.bindVertexArray(G.pva); gl.drawArrays(gl.TRIANGLES, 0, G.nt);
   }
+  // ---- terrain model: one sculpted hex for each terrain in the Key (Europe textures), shown under the 3D map
+  const TM = (() => {
+    const R = 24, N = 15, S3 = Math.sqrt(3), A = R * S3 / 2, STR = 12;
+    let el = null, cv2 = null, g2 = null, P2 = null, tiles = null, labs = [], w2 = 0, h2 = 0, pend2 = false, texs = {}, cm = { yaw: 0, pitch: 0.74, zoom: 1 };
+    const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const hs = (i, j, s) => { let h = (Math.imul(i | 0, 374761393) + Math.imul(j | 0, 668265263) + Math.imul(s | 0, 982451653)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    const vn = (x, y, s) => { const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy); return (hs(i, j, s) * (1 - u) + hs(i + 1, j, s) * u) * (1 - v) + (hs(i, j + 1, s) * (1 - u) + hs(i + 1, j + 1, s) * u) * v; };
+    const fbm = (x, y, s) => { let a = 0.5, f = 1, t = 0; for (let k = 0; k < 4; k++) { t += a * vn(x * f, y * f, s + k * 7); f *= 2; a *= 0.5; } return t / 0.9375; };
+    const hexn = (x, z) => Math.max(Math.abs(x), Math.abs(x * 0.5 + z * S3 / 2), Math.abs(x * 0.5 - z * S3 / 2)) / A;
+    const qq = (x, z) => Math.min(1, 0.65 * Math.hypot(x, z) / R + 0.35 * hexn(x, z));
+    const dome = q => 1 - sstep(0, 1, q);
+    const hx = s => [parseInt(s.slice(1, 3), 16) / 255, parseInt(s.slice(3, 5), 16) / 255, parseInt(s.slice(5, 7), 16) / 255];
+    const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
+    // ---- mesh helpers (vertex = pos3, normal3, uv2, tint3, snow1)
+    const MB = () => ({ v: [], i: [] });
+    const pv = (b, x, y, z, nx, ny, nz, u, v, c, sn) => { b.v.push(x, y, z, nx, ny, nz, u, v, c[0], c[1], c[2], sn || 0); return b.v.length / STR - 1; };
+    function ellip(b, cx, cy, cz, rx, ry, rz, col, o) {
+      o = o || {}; const LA = o.la || 5, LO = o.lo || 9, base = b.v.length / STR, ca = Math.cos(o.yaw || 0), sa = Math.sin(o.yaw || 0), ct = Math.cos(o.tilt || 0), st = Math.sin(o.tilt || 0), jt = o.jit == null ? 0.1 : o.jit, sd = o.seed || 0;
+      for (let a = 0; a <= LA; a++) for (let k = 0; k <= LO; k++) {
+        const th = a / LA * Math.PI, ph = k / LO * 2 * Math.PI, dx = Math.sin(th) * Math.cos(ph), dy = Math.cos(th), dz = Math.sin(th) * Math.sin(ph);
+        const j = 1 + jt * (hs(a === 0 || a === LA ? 0 : a, a === 0 || a === LA ? 0 : k % LO, sd) - 0.5) * 2;
+        let x = rx * dx * j, y = ry * dy * j, z = rz * dz * j, nx = dx / rx, ny = dy / ry, nz = dz / rz; const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+        let x2 = x * ct + y * st, y2 = -x * st + y * ct, nx2 = nx * ct + ny * st, ny2 = -nx * st + ny * ct;
+        const X = x2 * ca + z * sa, Z = -x2 * sa + z * ca, NX = nx2 * ca + nz * sa, NZ = -nx2 * sa + nz * ca, sh = 0.72 + 0.28 * (dy * 0.5 + 0.5);
+        pv(b, cx + X, cy + y2, cz + Z, NX, ny2, NZ, 0, 0, [col[0] * sh, col[1] * sh, col[2] * sh], 0);
+      }
+      for (let a = 0; a < LA; a++) for (let k = 0; k < LO; k++) { const i0 = base + a * (LO + 1) + k; b.i.push(i0, i0 + 1, i0 + LO + 1, i0 + 1, i0 + LO + 2, i0 + LO + 1); }
+    }
+    function cyl(b, x0, y0, z0, x1, y1, z1, r0, r1, col, n) {
+      n = n || 6; let ax = x1 - x0, ay = y1 - y0, az = z1 - z0; const al = Math.hypot(ax, ay, az); ax /= al; ay /= al; az /= al;
+      let hx_ = 0, hy_ = 0, hz_ = 1; if (Math.abs(az) > 0.9) { hx_ = 1; hz_ = 0; }
+      let px = ay * hz_ - az * hy_, py = az * hx_ - ax * hz_, pz = ax * hy_ - ay * hx_; const pl = Math.hypot(px, py, pz); px /= pl; py /= pl; pz /= pl;
+      const qx = ay * pz - az * py, qy = az * px - ax * pz, qz = ax * py - ay * px, base = b.v.length / STR;
+      for (let e = 0; e < 2; e++) for (let k = 0; k <= n; k++) { const ph = k / n * 2 * Math.PI, c = Math.cos(ph), s = Math.sin(ph), r = e ? r1 : r0, X = (e ? x1 : x0) + r * (c * px + s * qx), Y = (e ? y1 : y0) + r * (c * py + s * qy), Z = (e ? z1 : z0) + r * (c * pz + s * qz); pv(b, X, Y, Z, c * px + s * qx, c * py + s * qy, c * pz + s * qz, 0, 0, col, 0); }
+      for (let k = 0; k < n; k++) { const i0 = base + k; b.i.push(i0, i0 + 1, i0 + n + 1, i0 + 1, i0 + n + 2, i0 + n + 1); }
+    }
+    function tree(b, x, z, y0, s, kind, sd) {
+      const jj = hs(sd, 3, 5), gd = [0.16 + 0.07 * jj, 0.36 + 0.1 * jj, 0.17 + 0.05 * jj], gl_ = [0.24 + 0.08 * jj, 0.46 + 0.1 * jj, 0.2], br = [0.3, 0.21, 0.13];
+      if (kind === 'pine') {
+        cyl(b, x, y0 - 1, z, x, y0 + 5 * s, z, 1.3 * s, 0.9 * s, br, 5);
+        ellip(b, x, y0 + 6 * s, z, 5.6 * s, 3.9 * s, 5.6 * s, gd, { seed: sd, jit: 0.09 });
+        ellip(b, x, y0 + 10 * s, z, 4.4 * s, 3.4 * s, 4.4 * s, gd, { seed: sd + 1, jit: 0.09 });
+        ellip(b, x, y0 + 13.4 * s, z, 2.8 * s, 3.2 * s, 2.8 * s, gd, { seed: sd + 2, jit: 0.09 });
+      } else {
+        cyl(b, x, y0 - 1, z, x, y0 + 6 * s, z, 1.5 * s, 1.0 * s, br, 5);
+        ellip(b, x, y0 + 10 * s, z, 7 * s, 5.4 * s, 7 * s, gl_, { seed: sd, jit: 0.13, la: 6, lo: 10 });
+        ellip(b, x + 3.6 * s, y0 + 8 * s, z + 1.5 * s, 4 * s, 3.4 * s, 4 * s, gd, { seed: sd + 3, jit: 0.12 });
+        ellip(b, x - 3.2 * s, y0 + 8.6 * s, z - 2 * s, 4 * s, 3.4 * s, 4 * s, gd, { seed: sd + 4, jit: 0.12 });
+      }
+    }
+    function palm(b, x, z, y0, lx, lz, sd) {
+      const H = 15, seg = 5; let px = x, py = y0 - 1, pz = z;
+      for (let k = 1; k <= seg; k++) { const t = k / seg, nx = x + lx * Math.pow(t, 1.7) * 6, nz = z + lz * Math.pow(t, 1.7) * 6, ny = y0 - 1 + H * t; cyl(b, px, py, pz, nx, ny, nz, 1.15 - 0.5 * (k - 1) / seg, 1.15 - 0.5 * k / seg, [0.45, 0.33, 0.2], 5); px = nx; py = ny; pz = nz; }
+      for (let k = 0; k < 8; k++) {
+        const yaw = k / 8 * 2 * Math.PI + hs(sd, k, 1), tl = 0.35 + 0.35 * hs(sd, k, 2), rx = 7.4, ox = rx * 0.85 * Math.cos(tl), oy = -rx * 0.85 * Math.sin(tl);
+        const g = 0.8 + 0.3 * hs(sd, k, 3);
+        ellip(b, px + ox * Math.cos(yaw), py + oy + 1, pz - ox * Math.sin(yaw), rx, 0.55, 1.9, [0.2 * g, 0.5 * g, 0.18 * g], { yaw, tilt: tl, la: 3, lo: 8, jit: 0.04, seed: sd + k });
+      }
+      ellip(b, px, py, pz, 1.8, 1.4, 1.8, [0.36, 0.28, 0.14], { la: 3, lo: 6, jit: 0 });
+    }
+    function reed(b, x, z, y0, sd) {
+      for (let k = 0; k < 6; k++) { const a = hs(sd, k, 1) * 6.28, d = 1.8 * hs(sd, k, 2), h = 6.5 + 4 * hs(sd, k, 3), lean = 0.9 + hs(sd, k, 4), bx = x + d * Math.cos(a), bz = z + d * Math.sin(a), tx = bx + lean * Math.cos(a), tz = bz + lean * Math.sin(a);
+        cyl(b, bx, y0 - 0.5, bz, tx, y0 + h, tz, 0.42, 0.12, [0.52 + 0.1 * hs(sd, k, 5), 0.55, 0.26], 3);
+        if (k % 2 === 0) ellip(b, tx, y0 + h + 0.6, tz, 0.55, 1.5, 0.55, [0.35, 0.22, 0.12], { la: 3, lo: 5, jit: 0 }); }
+    }
+    function scatter(n, minD, maxHn, seed, avoid) {
+      const out = [];
+      for (let t = 0; t < 400 && out.length < n; t++) { const x = (hs(t, seed, 71) - 0.5) * 2 * A, z = (hs(t, seed, 72) - 0.5) * 2 * R; if (hexn(x, z) > maxHn) continue; if (avoid && avoid(x, z)) continue; if (out.some(p => Math.hypot(p[0] - x, p[1] - z) < minD)) continue; out.push([x, z]); }
+      return out;
+    }
+
+    // ---- terrain definitions: h = ground height; tint = [r,g,b,snow]; extra = props
+    const rimDrop = (x, z) => 1.6 * sstep(0.92, 1, hexn(x, z));
+    const hillH = (H, s) => (x, z) => { const d = dome(qq(x, z)); return d * (H + 7 * (fbm(x / 12 + s, z / 12, s + 10) - 0.5)) + 6 * Math.exp(-((x - 8) ** 2 + (z + 6) ** 2) / 90) * d + 0.9 * (fbm(x / 6, z / 6, s) - 0.5) * d; };
+    const mtH = (x, z) => {
+      const q = qq(x, z), env = Math.pow(dome(q), 1.25), rim = 1 - sstep(0.55, 0.98, hexn(x, z));
+      const g1 = Math.exp(-((x + 3) ** 2 + (z - 2) ** 2) / 170), g2_ = Math.exp(-((x - 9) ** 2 + (z + 6) ** 2) / 110), g3 = Math.exp(-((x + 10) ** 2 + (z + 8) ** 2) / 90);
+      const ridge = 1 - Math.abs(2 * fbm(x / 9, z / 9, 5) - 1), crag = 0.7 + 0.6 * ridge + 0.25 * (fbm(x / 3.2, z / 3.2, 6) - 0.5);
+      return rim * (env * 9 + (24 * g1 + 18 * g2_ + 13 * g3) * crag * Math.pow(env, 0.4));
+    };
+    const POND = [-3.5, 3];
+    const pondD = (x, z) => Math.hypot(x - POND[0], z - POND[1]);
+    const TY = [
+      { n: 'Grassland', t: 'grass', h: (x, z) => 1.4 * (fbm(x / 16, z / 16, 1) - 0.5) },
+      { n: 'Plains', t: 'plains', h: (x, z) => (fbm(x / 20, z / 20, 2) - 0.5) + 0.5 * Math.sin(x * 0.18 + z * 0.11) },
+      { n: 'Desert', t: 'desert', h: (x, z) => 2.6 * (fbm(x / 14, z / 14, 3) - 0.5) + 1.3 * Math.sin((x * 0.45 + z * 0.25) * 0.5 + 4 * fbm(x / 22, z / 22, 4)) },
+      { n: 'Tundra', t: 'tundra', h: (x, z) => 1.2 * (fbm(x / 12, z / 12, 5) - 0.5), tint: (x, z) => [1, 1, 1, sstep(0.5, 0.74, fbm(x / 10, z / 10, 8)) * 0.8] },
+      { n: 'Forest / jungle', t: 'forest', h: (x, z) => 2.6 * (1 - sstep(0.5, 1, qq(x, z))) + 1.2 * (fbm(x / 9, z / 9, 4) - 0.5), extra: (b, T) => {
+        scatter(11, 9.4, 0.8, 3).forEach(([x, z], i) => tree(b, x, z, T.h(x, z), 0.85 + 0.3 * hs(i, 9, 4), i % 3 === 0 ? 'broad' : 'pine', i * 5 + 1)); } },
+      { n: 'Forested hills', t: 'forest_hills', h: hillH(13, 4), extra: (b, T) => {
+        scatter(8, 9.6, 0.72, 5).forEach(([x, z], i) => tree(b, x, z, T.h(x, z), 0.8 + 0.25 * hs(i, 8, 4), i % 3 === 0 ? 'broad' : 'pine', i * 7 + 2)); } },
+      { n: 'Marsh', t: 'marsh', h: (x, z) => -1.2 + 0.6 * (fbm(x / 7, z / 7, 6) - 0.5) - 1.1 * sstep(0.56, 0.7, fbm(x / 10, z / 10, 9)),
+        tint: (x, z) => { const w = sstep(0.56, 0.7, fbm(x / 10, z / 10, 9)); const c = mixc([1, 1, 1], [0.5, 0.72, 0.85], w); return [c[0], c[1], c[2], 0]; },
+        extra: (b, T) => scatter(7, 7, 0.78, 6, (x, z) => fbm(x / 10, z / 10, 9) > 0.54).forEach(([x, z], i) => reed(b, x, z, T.h(x, z), i + 3)) },
+      { n: 'Oasis / floodplain', t: 'desert', h: (x, z) => { const d = pondD(x, z); return 2 * (fbm(x / 14, z / 14, 3) - 0.5) * sstep(0.1, 0.9, hexn(x, z)) + 0.9 * Math.exp(-((d - 12) ** 2) / 30) - 3.4 * (1 - sstep(4, 10.5, d)) * 1; },
+        tint: (x, z) => { const d = pondD(x, z), g = sstep(20, 11, d) * 0.9; const c = mixc([1, 1, 1], [0.78, 1.0, 0.55], g); return [c[0], c[1], c[2], 0]; },
+        extra: (f, T) => {
+          const n = 28, base = f.v.length / STR; pv(f, POND[0], -1.5, POND[1], 0, 1, 0, 0, 0, [0.2, 0.55, 0.7], 0);
+          for (let k = 0; k <= n; k++) { const a = k / n * 6.2832; pv(f, POND[0] + 9.2 * Math.cos(a), -1.5, POND[1] + 9.2 * Math.sin(a), 0, 1, 0, 0, 0, [0.12, 0.38, 0.58], 0); }
+          for (let k = 0; k < n; k++) f.i.push(base, base + 1 + k, base + 2 + k);
+          [[10, -4, 0.6, -0.2], [-13, -3, -0.4, 0.5], [2, 14, 0.2, -0.8]].forEach(([dx, dz, lx, lz], i) => { const x = POND[0] + dx, z = POND[1] + dz; palm(f, x, z, T.h(x, z), lx, lz, 40 + i * 7); }); } },
+      { n: 'Hills (grass)', t: 'grass_hills', h: hillH(20, 1) },
+      { n: 'Hills (plains)', t: 'plains_hills', h: hillH(20, 2) },
+      { n: 'Hills (desert)', t: 'desert_hills', h: hillH(20, 3) },
+      { n: 'Hills (tundra)', t: 'tundra_hills', h: hillH(19, 4), tint: (x, z, y) => [1, 1, 1, sstep(0.52, 0.72, fbm(x / 8, z / 8, 15)) * 0.7 * sstep(2, 9, y)] },
+      { n: 'Mountains', t: 'mountain', h: mtH, tint: (x, z, y, ny) => { const g = 1 - sstep(3, 20, y), c = mixc([1, 1, 1], [0.62, 0.8, 0.45], g * 0.9); return [c[0], c[1], c[2], sstep(32, 46, y + 5 * (fbm(x / 5, z / 5, 12) - 0.5)) * sstep(0.35, 0.75, ny)]; } },
+      { n: 'Coast', t: null, col: '#7cc3dc', water: -3, h: (x, z) => -3 + 0.3 * (fbm(x / 8, z / 8, 11) - 0.5) },
+      { n: 'Ocean', t: null, col: '#25457f', water: -4.5, h: (x, z) => -4.5 + 0.3 * (fbm(x / 8, z / 8, 12) - 0.5) },
+    ];
+    const ORDER = [[0, 1, 2, 3, 4, 5, 6, 7], [8, 9, 10, 11, 12, 13, 14]];
+
+    function tileMesh(T, id) {
+      const s = R / N, idx = new Map(), P = [], b = MB(), f = MB(); const hh = (x, z) => T.h(x, z) - rimDrop(x, z), eps = 0.5, ox = hs(id, 1, 90) * 50, oz = hs(id, 2, 90) * 50;
+      const wcol = T.col && hx(T.col);
+      for (let i = -N; i <= N; i++) for (let j = -N; j <= N; j++) {
+        const d = i * j > 0 ? Math.abs(i) + Math.abs(j) : Math.max(Math.abs(i), Math.abs(j)); if (d > N) continue;
+        const x = s * i * 0.8660254, z = s * (i * 0.5 + j), y = hh(x, z);
+        let nx = -(hh(x + eps, z) - hh(x - eps, z)) / (2 * eps), nz = -(hh(x, z + eps) - hh(x, z - eps)) / (2 * eps); const nl = Math.hypot(nx, 1, nz); nx /= nl; const ny = 1 / nl; nz /= nl;
+        let tn = T.tint ? T.tint(x, z, y, ny) : [1, 1, 1, 0]; const v = 0.95 + 0.1 * fbm(x / 26 + id, z / 26, 20);
+        let col = wcol ? mixc(wcol, [wcol[0] * 1.12, wcol[1] * 1.08, wcol[2] * 1.05], fbm(x / 9, z / 9, 13)) : [tn[0] * v, tn[1] * v, tn[2] * v];
+        idx.set(i + ',' + j, pv(b, x, y, z, nx, ny, nz, (x + ox) / (R * 1.9), (z + oz) / (R * 1.9), col, tn[3] || 0));
+        if (d === N) P.push([Math.atan2(z, x), x, y, z]);
+      }
+      for (let i = -N; i <= N; i++) for (let j = -N; j <= N; j++) {
+        const a = idx.get(i + ',' + j), u = idx.get((i + 1) + ',' + j), v = idx.get(i + ',' + (j + 1)), uv = idx.get((i + 1) + ',' + (j + 1));
+        if (a != null && u != null && v != null) b.i.push(a, u, v); if (u != null && uv != null && v != null) b.i.push(u, uv, v);
+      }
+      P.sort((p, q) => p[0] - q[0]);
+      const bot = (T.water != null ? T.water : 0) - 7, top0 = hx('#7d6a46'), bot0 = hx('#3b3123'), wt = hx('#3d7391'), wb = hx('#1d3f5a');
+      for (let k = 0; k < P.length; k++) {
+        const p = P[k], q = P[(k + 1) % P.length], mx = (p[1] + q[1]) / 2, mz = (p[3] + q[3]) / 2; let a = Math.round(Math.atan2(mz, mx) / (Math.PI / 3)) * (Math.PI / 3);
+        const nx = Math.cos(a), nz = Math.sin(a), base = f.v.length / STR, c1 = wcol ? wt : top0, c2 = wcol ? wb : bot0;
+        pv(f, p[1], p[2], p[3], nx, 0, nz, 0, 0, c1, 0); pv(f, q[1], q[2], q[3], nx, 0, nz, 0, 0, c1, 0); pv(f, p[1], bot, p[3], nx, 0, nz, 0, 0, c2, 0); pv(f, q[1], bot, q[3], nx, 0, nz, 0, 0, c2, 0);
+        f.i.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+      }
+      if (T.extra) T.extra(f, { h: hh }, b);
+      return { b, f };
+    }
+
+    const VS = `#version 300 es
+    in vec3 p; in vec3 n; in vec2 t; in vec3 c; in float s; uniform mat4 M; uniform vec3 O; out vec3 vn; out vec2 uv; out vec3 vc; out float sn;
+    void main(){ vn=n; uv=t; vc=c; sn=s; gl_Position=M*vec4(p+O,1.); }`;
+    const FS = `#version 300 es
+    precision highp float; in vec3 vn; in vec2 uv; in vec3 vc; in float sn; uniform sampler2D tex; uniform float useTex; out vec4 o;
+    void main(){ vec3 b = useTex>.5 ? .5*(texture(tex,uv).rgb+texture(tex,mat2(.8,.6,-.6,.8)*uv*1.37).rgb)*vc : vc; b=mix(b,vec3(.95,.97,1.),sn);
+      vec3 N=normalize(vn); float d=max(dot(N,normalize(vec3(-.4,.8,.5))),0.); float hm=.5+.5*N.y;
+      o=vec4(b*(.40+.24*hm+.66*d),1.); }`;
+    function mk(g, vs, fs) {
+      const sh = (t, s) => { const o = g.createShader(t); g.shaderSource(o, s); g.compileShader(o); if (!g.getShaderParameter(o, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(o)); return o; };
+      const p = g.createProgram(); g.attachShader(p, sh(g.VERTEX_SHADER, vs)); g.attachShader(p, sh(g.FRAGMENT_SHADER, fs)); g.linkProgram(p); if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(p)); return p;
+    }
+    function gpu(m) {
+      const va = g2.createVertexArray(); g2.bindVertexArray(va); const vb = g2.createBuffer(); g2.bindBuffer(g2.ARRAY_BUFFER, vb); g2.bufferData(g2.ARRAY_BUFFER, new Float32Array(m.v), g2.STATIC_DRAW);
+      [['p', 3, 0], ['n', 3, 3], ['t', 2, 6], ['c', 3, 8], ['s', 1, 11]].forEach(([nm, sz, off]) => { const l = g2.getAttribLocation(P2, nm); g2.enableVertexAttribArray(l); g2.vertexAttribPointer(l, sz, g2.FLOAT, false, STR * 4, off * 4); });
+      const ib = g2.createBuffer(); g2.bindBuffer(g2.ELEMENT_ARRAY_BUFFER, ib); g2.bufferData(g2.ELEMENT_ARRAY_BUFFER, new Uint32Array(m.i), g2.STATIC_DRAW); return { va, n: m.i.length };
+    }
+    const DX = 2 * A * 1.08, DZ = 1.5 * R * 1.5, CX = 3.5 * DX, CZ = DZ / 2;
+    function build() {
+      const tex = swatches('Europe'); if (!tex) return false; const C = TXC.Europe;
+      P2 = mk(g2, VS, FS);
+      for (const k in C) { const t = g2.createTexture(); g2.bindTexture(g2.TEXTURE_2D, t); g2.texImage2D(g2.TEXTURE_2D, 0, g2.RGBA, g2.RGBA, g2.UNSIGNED_BYTE, C[k]); g2.generateMipmap(g2.TEXTURE_2D); g2.texParameteri(g2.TEXTURE_2D, g2.TEXTURE_MIN_FILTER, g2.LINEAR_MIPMAP_LINEAR); g2.texParameteri(g2.TEXTURE_2D, g2.TEXTURE_WRAP_S, g2.REPEAT); g2.texParameteri(g2.TEXTURE_2D, g2.TEXTURE_WRAP_T, g2.REPEAT); texs[k] = t; }
+      tiles = []; labs.forEach(l => l.remove()); labs = [];
+      ORDER.forEach((row, r) => row.forEach((id, c) => {
+        const T = TY[id], m = tileMesh(T, id), x = c * DX + (r % 2 ? DX / 2 : 0), z = r * DZ, l = document.createElement('div'); l.className = 'tml'; l.textContent = T.n; el.appendChild(l); labs.push(l);
+        tiles.push({ T, o: [x, 0, z], top: gpu(m.b), fl: gpu(m.f), tex: T.t ? texs[T.t] : null, l });
+      }));
+      return true;
+    }
+    function draw2() {
+      if (!tiles || !w2 || !h2) return;
+      const asp = w2 / h2, tf = Math.tan(FOV / 2), base = Math.max(132 / (2 * tf), 390 / (2 * tf * asp)), d = base * cm.zoom, cp = Math.cos(cm.pitch), sp = Math.sin(cm.pitch);
+      const ty = 6, eye = [CX + d * Math.sin(cm.yaw) * cp, ty + d * sp, CZ + d * Math.cos(cm.yaw) * cp];
+      const M = mul(persp(FOV, asp, d * 0.05, d * 6), lookAt(eye, [CX, ty, CZ]));
+      g2.viewport(0, 0, cv2.width, cv2.height); const bg = getComputedStyle(view).backgroundColor.match(/[\d.]+/g).map(Number); g2.clearColor(bg[0] / 255, bg[1] / 255, bg[2] / 255, 1);
+      g2.enable(g2.DEPTH_TEST); g2.clear(g2.COLOR_BUFFER_BIT | g2.DEPTH_BUFFER_BIT); g2.useProgram(P2);
+      g2.uniformMatrix4fv(g2.getUniformLocation(P2, 'M'), false, M); g2.uniform1i(g2.getUniformLocation(P2, 'tex'), 0);
+      const uO = g2.getUniformLocation(P2, 'O'), uT = g2.getUniformLocation(P2, 'useTex');
+      tiles.forEach(t => {
+        g2.uniform3f(uO, t.o[0], 0, t.o[2]);
+        if (t.tex) { g2.activeTexture(g2.TEXTURE0); g2.bindTexture(g2.TEXTURE_2D, t.tex); g2.uniform1f(uT, 1); } else g2.uniform1f(uT, 0);
+        g2.bindVertexArray(t.top.va); g2.drawElements(g2.TRIANGLES, t.top.n, g2.UNSIGNED_INT, 0);
+        g2.uniform1f(uT, 0); g2.bindVertexArray(t.fl.va); g2.drawElements(g2.TRIANGLES, t.fl.n, g2.UNSIGNED_INT, 0);
+        const v = [t.o[0], -2, t.o[2] + R * 1.02, 1]; let cx = 0, cy = 0, cw = 0; for (let k = 0; k < 4; k++) { cx += M[k * 4] * v[k]; cy += M[k * 4 + 1] * v[k]; cw += M[k * 4 + 3] * v[k]; }
+        t.l.style.left = ((cx / cw * 0.5 + 0.5) * w2) + 'px'; t.l.style.top = ((1 - (cy / cw * 0.5 + 0.5)) * h2) + 'px';
+      });
+    }
+    const redraw2 = () => { if (!pend2) { pend2 = true; requestAnimationFrame(() => { pend2 = false; draw2(); }); } };
+    function size2() { if (!el) return; const dp = Math.min(window.devicePixelRatio || 1, 2); w2 = el.clientWidth; h2 = el.clientHeight; if (!w2 || !h2) return; cv2.width = Math.round(w2 * dp); cv2.height = Math.round(h2 * dp); cv2.style.width = w2 + 'px'; cv2.style.height = h2 + 'px'; redraw2(); }
+    function init() {
+      el = document.createElement('div'); el.id = 'v3t'; cv2 = document.createElement('canvas'); el.appendChild(cv2);
+      el.insertAdjacentHTML('beforeend', '<div class="tmh"><b>Terrain model</b> · Europe textures · drag to rotate · scroll to zoom · double-click to reset</div>');
+      view.appendChild(el); g2 = cv2.getContext('webgl2', { antialias: true }); if (!g2) { el.remove(); el = null; throw new Error('WebGL2 unavailable'); }
+      let down = null;
+      cv2.addEventListener('pointerdown', e => { e.stopPropagation(); cv2.setPointerCapture(e.pointerId); down = [e.clientX, e.clientY]; });
+      cv2.addEventListener('pointermove', e => { if (!down) return; e.stopPropagation(); cm.yaw -= (e.clientX - down[0]) * 0.006; cm.pitch = Math.max(0.22, Math.min(1.4, cm.pitch + (e.clientY - down[1]) * 0.005)); down = [e.clientX, e.clientY]; redraw2(); });
+      const up = e => { down = null; }; cv2.addEventListener('pointerup', up); cv2.addEventListener('pointercancel', up);
+      cv2.addEventListener('wheel', e => { e.preventDefault(); e.stopPropagation(); cm.zoom = Math.max(0.3, Math.min(2.6, cm.zoom * Math.exp(e.deltaY * 0.0015))); redraw2(); }, { passive: false });
+      cv2.addEventListener('dblclick', () => { cm = { yaw: 0, pitch: 0.74, zoom: 1 }; redraw2(); });
+      window.addEventListener('resize', size2);
+    }
+    function ready(cb, n) { const im = TXI.Europe; if (im && im.naturalWidth) cb(); else if ((n || 0) < 100) setTimeout(() => ready(cb, (n || 0) + 1), 100); }
+    return {
+      show() { try { if (!el) init(); if (!tiles) ready(() => { try { if (build()) size2(); } catch (e) { console.error(e); } }); size2(); } catch (e) { console.error(e); } },
+      dbg: () => ({ tiles, cm }),
+    };
+  })();
   window.__v3dbg = () => ({ G, cam });
   btn.addEventListener('click', () => {
     const want = btn.getAttribute('aria-pressed') !== 'true';
     if (want) {
       if (!D) return;
       if (!box) { try { setup(); } catch (e) { alert('The 3D view could not start: ' + e.message); return; } }
-      box.classList.add('on'); view.classList.add('is3d'); btn.textContent = '2D'; resize();
+      box.classList.add('on'); view.classList.add('is3d'); btn.textContent = '2D'; resize(); TM.show();
     } else { btn.textContent = '3D'; box.classList.remove('on'); view.classList.remove('is3d'); }
     btn.setAttribute('aria-pressed', want ? 'true' : 'false');
   });
