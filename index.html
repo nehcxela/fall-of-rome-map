@@ -1254,6 +1254,7 @@ Promise.resolve(window.__MD).then(d => {
     const rimDrop = (x, z) => 1.6 * sstep(0.92, 1, hexn(x, z));
     const mold = (k, f) => { const o = MD[k]; return (x, z) => f(smp(o.m, x, z), smp(o.d, x, z), x, z); };
     const canopy = (M, D, x, z) => 9 * Math.max(0, Math.min(1, 0.35 * M + 0.65 * (0.5 + D * 0.3))) * (1 - sstep(0.68, 0.97, hexn(x, z)));
+    const pool = (x, z) => sstep(0.5, 0.68, fbm(x / 9, z / 9, 9));
     const POND = [-3.5, 3];
     const pondD = (x, z) => Math.hypot(x - POND[0], z - POND[1]);
     const TY = [
@@ -1263,7 +1264,8 @@ Promise.resolve(window.__MD).then(d => {
       { n: 'Tundra', k: 'tundra', h: mold('tundra', (M, D) => 2.6 * (M - 0.5) + 0.3 * D) },
       { n: 'Forest / jungle', k: 'forest', h: mold('forest', (M, D, x, z) => 2.2 * (1 - sstep(0.5, 1, qq(x, z))) + canopy(M, D, x, z)) },
       { n: 'Forested hills', k: 'forest_hills', h: mold('forest_hills', (M, D, x, z) => 13 * dome(qq(x, z)) + 4 * (M - 0.5) * dome(qq(x, z)) + 0.9 * canopy(M, D, x, z)) },
-      { n: 'Marsh', k: 'marsh', h: mold('marsh', (M, D) => -1.2 + 2.2 * (M - 0.5) + 0.3 * D) },
+      { n: 'Marsh', k: 'marsh', h: mold('marsh', (M, D, x, z) => -1.2 + 1.6 * (M - 0.5) + 0.25 * D - 1.3 * pool(x, z)),
+        tint: (x, z) => { const p = pool(x, z), g = fbm(x / 6, z / 6, 3); let c = mixc([0.33, 0.47, 0.2], [0.46, 0.58, 0.3], g); c = mixc(c, [0.3, 0.6, 0.52], p * 0.85); return [c[0], c[1], c[2], 0]; } },
       { n: 'Oasis / floodplain', k: 'desert', h: mold('oasis', (M, D, x, z) => { const d = pondD(x, z); return 2.6 * (M - 0.5) * sstep(0.1, 0.9, hexn(x, z)) + 0.25 * D + 0.9 * Math.exp(-((d - 12) ** 2) / 30) - 3.4 * (1 - sstep(4, 10.5, d)); }),
         extra: (f) => { const n = 28, base = f.v.length / STR; pv(f, POND[0], -1.5, POND[1], 0, 1, 0, 0, 0, [0.2, 0.55, 0.7], 0);
           for (let k = 0; k <= n; k++) { const a = k / n * 6.2832; pv(f, POND[0] + 9.2 * Math.cos(a), -1.5, POND[1] + 9.2 * Math.sin(a), 0, 1, 0, 0, 0, [0.12, 0.38, 0.58], 0); }
@@ -1272,7 +1274,11 @@ Promise.resolve(window.__MD).then(d => {
       { n: 'Hills (plains)', k: 'plains_hills', h: mold('plains_hills', (M, D, x, z) => { const d = dome(qq(x, z)); return d * (15 + 5 * (M - 0.5)) + 1.3 * D * Math.sqrt(d); }) },
       { n: 'Hills (desert)', k: 'desert_hills', h: mold('desert_hills', (M, D, x, z) => { const d = dome(qq(x, z)); return d * (15 + 5 * (M - 0.5)) + 1.3 * D * Math.sqrt(d); }) },
       { n: 'Hills (tundra)', k: 'tundra_hills', h: mold('tundra_hills', (M, D, x, z) => { const d = dome(qq(x, z)); return d * (15 + 5 * (M - 0.5)) + 1.3 * D * Math.sqrt(d); }) },
-      { n: 'Mountains', k: 'mountain', h: mold('mountain', (M, D, x, z) => { const env = Math.pow(dome(qq(x, z)), 1.2), rim = 1 - sstep(0.55, 0.98, hexn(x, z)); return rim * (env * (4 + 44 * Math.pow(M, 1.1)) + 2.2 * D * Math.pow(env, 0.6)); }) },
+      { n: 'Mountains', k: 'mountain', tint: (x, z, y, ny) => { const D = smp(MD.mountain.d, x, z), st = fbm(x / 2.2, z / 5.5, 14);
+          let c = mixc([0.3, 0.32, 0.36], [0.66, 0.69, 0.73], sstep(-1.2, 1.2, D * 0.8 + (st - 0.5) * 2.2));
+          c = mixc(c, [0.3, 0.42, 0.22], (1 - sstep(0.5, 3.5, y)) * 0.8);
+          return [c[0], c[1], c[2], sstep(15, 25, y + 4 * (fbm(x / 4, z / 4, 12) - 0.5)) * sstep(0.45, 0.8, ny)]; },
+        h: mold('mountain', (M, D, x, z) => { const env = Math.pow(dome(qq(x, z)), 0.7), rim = 1 - sstep(0.7, 0.99, hexn(x, z)); return rim * (env * (9 + 34 * Math.pow(M, 1.1)) + 2.2 * D * Math.pow(env, 0.6)); }) },
       { n: 'Coast', col: '#7cc3dc', water: -3, h: (x, z) => -3 + 0.3 * (fbm(x / 8, z / 8, 11) - 0.5) },
       { n: 'Ocean', col: '#25457f', water: -4.5, h: (x, z) => -4.5 + 0.3 * (fbm(x / 8, z / 8, 12) - 0.5) },
     ];
@@ -1285,7 +1291,7 @@ Promise.resolve(window.__MD).then(d => {
         const d = i * j > 0 ? Math.abs(i) + Math.abs(j) : Math.max(Math.abs(i), Math.abs(j)); if (d > N) continue;
         const x = s * i * 0.8660254, z = s * (i * 0.5 + j), y = hh(x, z);
         let nx = -(hh(x + eps, z) - hh(x - eps, z)) / (2 * eps), nz = -(hh(x, z + eps) - hh(x, z - eps)) / (2 * eps); const nl = Math.hypot(nx, 1, nz); nx /= nl; const ny = 1 / nl; nz /= nl;
-        const tn = [1, 1, 1, 0], col = fl;
+        const tn = T.tint ? T.tint(x, z, y, ny) : [1, 1, 1, 0], col = T.tint ? tn : fl;
         idx.set(i + ',' + j, pv(b, x, y, z, nx, ny, nz, (x + ox) / (R * 1.9), (z + oz) / (R * 1.9), col, tn[3] || 0));
         if (d === N) P.push([Math.atan2(z, x), x, y, z]);
       }
