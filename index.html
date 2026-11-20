@@ -1283,7 +1283,7 @@ Promise.resolve(window.__MD).then(d => {
           // the side of a forest is more tree crowns, fading into shade towards the ground
           const SG = 16, VL = 5, len = Math.hypot(q[1] - p[1], q[3] - p[3]);
           for (let a2 = 0; a2 <= SG; a2++) { const u = a2 / SG, X = p[1] + (q[1] - p[1]) * u, Z = p[3] + (q[3] - p[3]) * u, Y = p[2] + (q[2] - p[2]) * u;
-            for (let l = 0; l <= VL; l++) { const t = l / VL, yy = Y + (bot - Y) * t, cr = crowns(u * len, yy * 0.9 + 40), sh = (0.55 + 0.45 * cr) * (1 - 0.4 * t), off = 1.6 * cr * (1 - t * 0.5) * Math.min(1, Math.min(u, 1 - u) * 8);
+            for (let l = 0; l <= VL; l++) { const t = l / VL, yy = Y + (bot - Y) * t, cr = crowns(u * len, yy * 0.9 + 40), sh = (0.55 + 0.45 * cr) * (1 - 0.4 * t), off = 1.6 * cr * Math.min(1, t * 4) * (1 - t * 0.5) * Math.min(1, Math.min(u, 1 - u) * 8);
               pv(g, X + nx * off, yy, Z + nz * off, nx, 0.6 * (1 - cr) + 0.15, nz, 0, 0, [fl[0] * sh * 1.5, fl[1] * sh * 1.5, fl[2] * sh * 1.5], 0); } }
           for (let a2 = 0; a2 < SG; a2++) for (let l = 0; l < VL; l++) { const i0 = base + a2 * (VL + 1) + l, i1 = i0 + (VL + 1); g.i.push(i0, i1, i0 + 1, i1, i1 + 1, i0 + 1); }
           continue;
