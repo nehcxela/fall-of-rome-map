@@ -961,14 +961,7 @@ Promise.resolve(window.__MD).then(d => {
     const smp = (arr, x, z) => { const u = Math.max(0, Math.min(SW - 1.001, x + SW / 2 - 0.5)), v = Math.max(0, Math.min(SW - 1.001, z + SW / 2 - 0.5)), i = Math.floor(u), j = Math.floor(v), fx = u - i, fy = v - j;
       return arr[j * SW + i] * (1 - fx) * (1 - fy) + arr[j * SW + i + 1] * fx * (1 - fy) + arr[(j + 1) * SW + i] * (1 - fx) * fy + arr[(j + 1) * SW + i + 1] * fx * fy; };
   const sstepF = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  const hsF = (i, j, s) => { let h = (Math.imul(i | 0, 374761393) + Math.imul(j | 0, 668265263) + Math.imul(s | 0, 982451653)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-  const vnF = (x, y, s) => { const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy); return (hsF(i, j, s) * (1 - u) + hsF(i + 1, j, s) * u) * (1 - v) + (hsF(i, j + 1, s) * (1 - u) + hsF(i + 1, j + 1, s) * u) * v; };
-  const fbmN = (x, y, s) => { let a = 0.5, f = 1, t = 0; for (let k = 0; k < 3; k++) { t += a * vnF(x * f, y * f, s + k * 7); f *= 2; a *= 0.5; } return t / 0.875; };
   const mixF = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-  const wrapM = u => { let t = ((u % 96) + 96) % 96; if (t >= 48) t = 95.999 - t; return Math.min(46.999, t); };
-  let DD = 0;
-  const mdAt = (o, x, z) => { const u = wrapM(x * 0.866 + z * 0.5 + 11), v = wrapM(-x * 0.5 + z * 0.866 + 29), i = u | 0, j = v | 0, fx = u - i, fy = v - j, a = j * 48 + i, w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
-    DD = o.d[a] * w00 + o.d[a + 1] * w10 + o.d[a + 48] * w01 + o.d[a + 49] * w11; return o.m[a] * w00 + o.m[a + 1] * w10 + o.m[a + 48] * w01 + o.m[a + 49] * w11; };
   let box = null, cv = null, gl = null, G = null, cam = null, W = 0, H = 0, dpr = 1, pending = false;
 
   function mul(a, b) { const o = new Float32Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; return o; }
@@ -980,79 +973,56 @@ Promise.resolve(window.__MD).then(d => {
     return new Float32Array([xx, yx, zx, 0, xy, yy, zy, 0, xz, yz, zz, 0, -(xx * e[0] + xy * e[1] + xz * e[2]), -(yx * e[0] + yy * e[1] + yz * e[2]), -(zx * e[0] + zy * e[1] + zz * e[2]), 1]);
   }
 
+  // The map is drawn hex by hex from the terrain model (same moulds, same flat colours). Hexes are grouped into chunks;
+  // each chunk is merged at a resolution that follows how large its hexes appear on screen.
   function buildWorld() {
-    const R = D.R, hexes = D.hexes, n = hexes.length;
+    const R = D.R, hexes = D.hexes, n = hexes.length, K = R / 24, LV = [5, 10, 20, 32], A24 = 24 * 0.8660254;
+    const T2 = [0, 1, 2, 3, 4, 8, 9, 10, 11, 5, 12, 6, 7, 13, 14]; // map terrain index -> model tile
     let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
     for (const h of hexes) { x0 = Math.min(x0, h[1]); x1 = Math.max(x1, h[1]); z0 = Math.min(z0, h[2]); z1 = Math.max(z1, h[2]); }
     x0 -= R; x1 += R; z0 -= R; z1 += R;
-    const cs = 2 * R, gx = Math.ceil((x1 - x0) / cs) + 1, gz = Math.ceil((z1 - z0) / cs) + 1, bins = Array.from({ length: gx * gz }, () => []);
-    // moulds: terrain index -> mould read from the Europe terrain sheet
-    const KM = ['grass', 'plains', 'desert', 'tundra', 'forest', 'grass_hills', 'plains_hills', 'desert_hills', 'tundra_hills', 'forest_hills', 'mountain', 'marsh', 'desert', null, null];
-    const FL = KM.map((k, t) => hexRGB(k && t !== 10 && t !== 11 ? MD[k].c : (TT[t] || TT[0])[0]).map(v => v / 255));
-    const GR = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9, 10, 7.5, 5.5];
-    const hx = new Float32Array(n), hz = new Float32Array(n), hk = new Uint8Array(n), mo = new Array(n);
-    hexes.forEach((h, i) => { hx[i] = h[1]; hz[i] = h[2]; hk[i] = h[3]; mo[i] = KM[h[3]] ? MD[KM[h[3]]] : null; bins[Math.floor((h[1] - x0) / cs) + gx * Math.floor((h[2] - z0) / cs)].push(i); });
-    const pool = (x, z) => sstepF(0.5, 0.68, fbmN(x / 9, z / 9, 9));
-    const canopy = (M, Dd) => 9 * Math.max(0, Math.min(1, 0.35 * M + 0.65 * (0.5 + Dd * 0.3)));
-    function contrib(i, x, z, d2) {
-      const t = hk[i], o = mo[i];
-      if (!o) return GR[t] + 0.3 * (fbmN(x / 40, z / 40, 3) - 0.5);
-      const M = mdAt(o, x, z), Dd = DD;
-      switch (t) {
-        case 0: return 10 + 3 * (M - 0.5) + 0.32 * Dd;
-        case 1: return 10 + 2.4 * (M - 0.5) + 0.28 * Dd;
-        case 2: return 10 + 3.6 * (M - 0.5) + 0.3 * Dd;
-        case 3: return 10 + 2.6 * (M - 0.5) + 0.3 * Dd;
-        case 4: return 12.2 + canopy(M, Dd);
-        case 5: case 6: case 7: case 8: { const e = Math.exp(-d2 * 1.1); return 10 + e * (15 + 5 * (M - 0.5)) + 1.3 * Dd * Math.sqrt(e); }
-        case 9: { const e = Math.exp(-d2 * 1.1); return 10 + e * (13 + 4 * (M - 0.5)) + 0.9 * canopy(M, Dd) * Math.sqrt(e); }
-        case 10: { const e = Math.exp(-d2 * d2 * 0.55); return 10 + e * (9 + 22 * Math.pow(M, 1.1)) + 8 * Math.exp(-d2 * 3) + 2.2 * Dd * Math.sqrt(e); }
-        case 11: return 9 + 1.6 * (M - 0.5) + 0.25 * Dd - 1.3 * pool(x, z);
-        default: return 10 + 1.8 * (M - 0.5) + 0.25 * Dd - 3.4 * (1 - sstepF(0.15, 0.42, Math.sqrt(d2)));
-      }
+    const hx = new Float32Array(n), hz = new Float32Array(n), hk = new Uint8Array(n), mask = new Uint8Array(n), cs = 2 * R, gx = Math.ceil((x1 - x0) / cs) + 1, gz = Math.ceil((z1 - z0) / cs) + 1, bins = Array.from({ length: gx * gz }, () => []);
+    hexes.forEach((h, i) => { hx[i] = h[1]; hz[i] = h[2]; hk[i] = h[3]; bins[Math.floor((h[1] - x0) / cs) + gx * Math.floor((h[2] - z0) / cs)].push(i); });
+    // which sides of a land hex face water (they get a sandy shore)
+    for (let i = 0; i < n; i++) {
+      if (hk[i] >= 13) continue; const cx = Math.floor((hx[i] - x0) / cs), cz = Math.floor((hz[i] - z0) / cs);
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const X = cx + a, Z = cz + b; if (X < 0 || Z < 0 || X >= gx || Z >= gz) continue;
+        for (const j of bins[X + gx * Z]) { if (j === i || hk[j] < 13) continue; const dx = hx[j] - hx[i], dz = hz[j] - hz[i]; if (Math.hypot(dx, dz) > 1.9 * R) continue; mask[i] |= 1 << ((Math.round(Math.atan2(dz, dx) / (Math.PI / 3)) % 6 + 6) % 6); } }
     }
-    const S2 = 1 / (0.55 * 0.55), SC = 1 / (0.38 * 0.38);
-    const ROCK_D = [0.3, 0.32, 0.36], ROCK_L = [0.66, 0.69, 0.73], GREEN = [0.3, 0.42, 0.22], SAND = [0.83, 0.77, 0.58], FOAM = [0.93, 0.91, 0.82];
-    const col = [0, 0, 0];
-    function colour(i, x, z, y, ny, d2) {
-      const t = hk[i];
-      if (t === 10) {
-        const Dd = (mdAt(mo[i], x, z), DD), st = fbmN(x / 2.2, z / 5.5, 14), yy = y - 10;
-        let c = mixF(ROCK_D, ROCK_L, sstepF(-1.2, 1.2, Dd * 0.8 + (st - 0.5) * 2.2)); c = mixF(c, GREEN, (1 - sstepF(0.3, 2.5, yy)) * 0.8);
-        const sn = sstepF(14, 24, yy + 4 * (fbmN(x / 4, z / 4, 12) - 0.5)) * sstepF(0.45, 0.8, ny); c = mixF(c, [0.95, 0.97, 1], sn); col[0] = c[0]; col[1] = c[1]; col[2] = c[2]; return;
+    // chunks of 8 x 8 hexes
+    const CW = 8 * 2 * R * 0.866, CH = 8 * 1.5 * R, cmap = new Map(), chunks = [];
+    for (let i = 0; i < n; i++) { const key = Math.floor((hx[i] - x0) / CW) + ',' + Math.floor((hz[i] - z0) / CH); let c = cmap.get(key); if (!c) { c = { hs: [], lod: -1, vao: null, vis: false }; cmap.set(key, c); chunks.push(c); } c.hs.push(i); }
+    for (const c of chunks) { let a = 0, b = 0; for (const i of c.hs) { a += hx[i]; b += hz[i]; } c.cx = a / c.hs.length; c.cz = b / c.hs.length; c.rad = 0; for (const i of c.hs) c.rad = Math.max(c.rad, Math.hypot(hx[i] - c.cx, hz[i] - c.cz) + R); c.rad += 40; }
+    // one mesh per terrain and resolution (every hex of a kind is the same mould)
+    const cache = new Map();
+    const tile = (t, li) => {
+      const key = t * 8 + li; let m = cache.get(key); if (m) return m;
+      const q = TM.tileMesh(TM.TY[T2[t]], 0, LV[li]), nb = q.b.v.length / 12, nf = q.f.v.length / 12, v = new Float32Array((nb + nf) * 9), ix = new Uint32Array(q.b.i.length + q.f.i.length);
+      const put = (src, off) => { for (let k = 0; k < src.length / 12; k++) { const s = k * 12, o = (off + k) * 9, sn = src[s + 11]; v[o] = src[s]; v[o + 1] = src[s + 1]; v[o + 2] = src[s + 2]; v[o + 3] = src[s + 3]; v[o + 4] = src[s + 4]; v[o + 5] = src[s + 5];
+        v[o + 6] = src[s + 8] + (0.95 - src[s + 8]) * sn; v[o + 7] = src[s + 9] + (0.97 - src[s + 9]) * sn; v[o + 8] = src[s + 10] + (1 - src[s + 10]) * sn; } };
+      put(q.b.v, 0); put(q.f.v, nb); ix.set(q.b.i, 0); for (let k = 0; k < q.f.i.length; k++) ix[q.b.i.length + k] = q.f.i[k] + nb;
+      m = { v, i: ix, nv: nb + nf }; cache.set(key, m); return m;
+    };
+    const CA = [0, 1, 2, 3, 4, 5].map(k => Math.cos(k * Math.PI / 3)), SA = [0, 1, 2, 3, 4, 5].map(k => Math.sin(k * Math.PI / 3)), SAND = [0.83, 0.77, 0.58], FOAM = [0.93, 0.91, 0.82];
+    const sst = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const merge = (c, li) => {
+      let nv = 0, ni = 0; for (const i of c.hs) { const m = tile(hk[i], li); nv += m.nv; ni += m.i.length; }
+      const v = new Float32Array(nv * 9), ix = new Uint32Array(ni); let vo = 0, io = 0, base = 0;
+      for (const i of c.hs) {
+        const m = tile(hk[i], li), msk = mask[i], sv = m.v, X = hx[i], Z = hz[i];
+        for (let k = 0; k < m.nv; k++) {
+          const s = k * 9, o = vo + s, lx = sv[s], lz = sv[s + 2];
+          v[o] = lx * K + X; v[o + 1] = sv[s + 1]; v[o + 2] = lz * K + Z; v[o + 3] = sv[s + 3]; v[o + 4] = sv[s + 4]; v[o + 5] = sv[s + 5];
+          let r = sv[s + 6], g = sv[s + 7], b = sv[s + 8];
+          if (msk && sv[s + 4] !== 0) { let sw = 0, fo = 0; for (let d = 0; d < 6; d++) if (msk >> d & 1) { const p = (lx * CA[d] + lz * SA[d]) / A24; sw = Math.max(sw, sst(0.58, 0.85, p)); fo = Math.max(fo, sst(0.86, 0.96, p)); }
+            if (sw > 0) { const a = sw * 0.95; r += (SAND[0] - r) * a; g += (SAND[1] - g) * a; b += (SAND[2] - b) * a; const f = fo * 0.7; r += (FOAM[0] - r) * f; g += (FOAM[1] - g) * f; b += (FOAM[2] - b) * f; } }
+          v[o + 6] = r; v[o + 7] = g; v[o + 8] = b;
+        }
+        for (let k = 0; k < m.i.length; k++) ix[io + k] = m.i[k] + base;
+        vo += m.nv * 9; io += m.i.length; base += m.nv;
       }
-      if (t === 11) { const p = pool(x, z), g = fbmN(x / 6, z / 6, 3); let c = mixF([0.33, 0.47, 0.2], [0.46, 0.58, 0.3], g); c = mixF(c, [0.3, 0.6, 0.52], p * 0.85); col[0] = c[0]; col[1] = c[1]; col[2] = c[2]; return; }
-      if (t === 12) { const d = Math.sqrt(d2); let c = mixF(FL[12], [0.62, 0.72, 0.42], sstepF(0.85, 0.42, d) * 0.55); c = mixF(c, [0.2, 0.5, 0.66], sstepF(0.4, 0.3, d)); col[0] = c[0]; col[1] = c[1]; col[2] = c[2]; return; }
-      const f = FL[t]; col[0] = f[0]; col[1] = f[1]; col[2] = f[2];
-    }
-    // ---- terrain grid: height, normals, colour per vertex
-    const g = 3, nx = Math.ceil((x1 - x0) / g) + 1, nz = Math.ceil((z1 - z0) / g) + 1, hh = new Float32Array(nx * nz), wf = new Float32Array(nx * nz);
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-      const x = x0 + i * g, z = z0 + j * g, cx = Math.floor((x - x0) / cs), cz = Math.floor((z - z0) / cs); let sw = 0, sh = 0, sa = 0;
-      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-        const X = cx + a, Z = cz + b; if (X < 0 || Z < 0 || X >= gx || Z >= gz) continue;
-        for (const k of bins[X + gx * Z]) { const dx = (x - hx[k]) / R, dz = (z - hz[k]) / R, d2 = dx * dx + dz * dz; if (d2 > 2.2) continue; const w = Math.exp(-d2 * S2) * (hk[k] === 10 ? 2.4 : 1); sw += w; sh += w * contrib(k, x, z, d2); if (hk[k] >= 13) sa += w; }
-      }
-      hh[i + j * nx] = sw > 0 ? sh / sw : 0; wf[i + j * nx] = sw > 0 ? sa / sw : 1;
-    }
-    const P = new Float32Array(nx * nz * 10), SLOT = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 2, -1, -1];
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-      const k = i + j * nx, a = hh[Math.max(0, i - 1) + j * nx], b = hh[Math.min(nx - 1, i + 1) + j * nx], c = hh[i + Math.max(0, j - 1) * nx], d = hh[i + Math.min(nz - 1, j + 1) * nx];
-      let ex = -(b - a) / (2 * g), ez = -(d - c) / (2 * g); const l = Math.hypot(ex, 1, ez), ny = 1 / l;
-      const x = x0 + i * g, z = z0 + j * g, y = hh[k], cx = Math.floor((x - x0) / cs), cz = Math.floor((z - z0) / cs);
-      let sw = 0, r = 0, gg = 0, bb = 0, bw = 0, bk = -1;
-      for (let q = -1; q <= 1; q++) for (let s = -1; s <= 1; s++) {
-        const X = cx + q, Z = cz + s; if (X < 0 || Z < 0 || X >= gx || Z >= gz) continue;
-        for (const m of bins[X + gx * Z]) { const dx = (x - hx[m]) / R, dz = (z - hz[m]) / R, d2 = dx * dx + dz * dz; if (d2 > 1.3) continue; const w = Math.exp(-d2 * SC) * (hk[m] === 10 ? 3.2 : 1); colour(m, x, z, y, ny, d2); sw += w; r += w * col[0]; gg += w * col[1]; bb += w * col[2]; if (w > bw) { bw = w; bk = SLOT[hk[m]]; } }
-      }
-      let cc = sw > 0 ? [r / sw, gg / sw, bb / sw] : FL[14].slice(); const Wf = wf[k];
-      if (Wf > 0.02 && Wf < 0.5) { cc = mixF(cc, SAND, sstepF(0.03, 0.2, Wf) * 0.95); cc = mixF(cc, FOAM, sstepF(0.34, 0.47, Wf) * 0.7); }
-      P.set([x, y, z, ex / l, ny, ez / l, cc[0], cc[1], cc[2], bk], k * 10);
-    }
-    const det = new Uint8Array(192 * 144); // fine relief of each mould (from the sheet), 4 x 3 cells of 48 px
-    ['grass', 'plains', 'desert', 'tundra', 'forest', 'grass_hills', 'plains_hills', 'desert_hills', 'tundra_hills', 'forest_hills', 'mountain', 'marsh'].forEach((k, c) => { const ox = (c % 4) * 48, oy = Math.floor(c / 4) * 48; for (let y = 0; y < 48; y++) for (let x = 0; x < 48; x++) det[(oy + y) * 192 + ox + x] = Math.max(0, Math.min(255, Math.round((MD[k].d[y * 48 + x] + 3) / 6 * 255))); });
-    const IDX = new Uint32Array((nx - 1) * (nz - 1) * 6); let q = 0;
-    for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = i + j * nx, b = a + 1, c = a + nx, d = c + 1; IDX[q++] = a; IDX[q++] = c; IDX[q++] = b; IDX[q++] = b; IDX[q++] = c; IDX[q++] = d; }
+      return { v, i: ix };
+    };
     // rivers and roads are the 2D layer images drawn over the ground (with transparency); they obey the Rivers / Roads switches
     const TW = gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 8192 ? 6144 : 4096, TH = TW / 2, sx = TW / (x1 - x0), sz = TH / (z1 - z0);
     const out = document.createElement('canvas'); out.width = TW; out.height = TH; const o2 = out.getContext('2d');
@@ -1063,24 +1033,15 @@ Promise.resolve(window.__MD).then(d => {
       for (const id of ['rivers', 'roads']) { const c = document.getElementById('L-' + id); if (lay[id] && (!c || c.checked)) o2.drawImage(lay[id], -x0 * sx, -z0 * sz, 3848 * sx, 2308 * sz); }
     };
     world.paint();
-    return Object.assign(world, { det, P, IDX, tc: out, tv: new Float32Array(0), x0, x1, z0, z1, span: x1 - x0, zspan: z1 - z0 });
+    return Object.assign(world, { chunks, merge, tc: out, tv: new Float32Array(0), x0, x1, z0, z1, span: x1 - x0, zspan: z1 - z0 });
   }
 
   const VS = `#version 300 es
-  in vec3 p; in vec3 n; in vec3 c; in float k; uniform mat4 M; uniform vec4 T; out vec3 vn; out vec2 uv; out vec3 vc; out vec2 wp; flat out float vk;
-  void main(){ vn=n; vc=c; vk=k; wp=p.xz; uv=vec2((p.x-T.x)*T.z,(p.z-T.y)*T.w); gl_Position=M*vec4(p,1.); }`;
+  in vec3 p; in vec3 n; in vec3 c; uniform mat4 M; uniform vec4 T; out vec3 vn; out vec2 uv; out vec3 vc;
+  void main(){ vn=n; vc=c; uv=vec2((p.x-T.x)*T.z,(p.z-T.y)*T.w); gl_Position=M*vec4(p,1.); }`;
   const FS = `#version 300 es
-  precision highp float; in vec3 vn; in vec2 uv; in vec3 vc; in vec2 wp; flat in float vk; uniform sampler2D tex; uniform sampler2D det; uniform float uZ; out vec4 o;
-  float dsm(vec2 p, float k){ float u=mod(p.x*.866+p.y*.5+11.,96.), v=mod(-p.x*.5+p.y*.866+29.,96.); u=u<48.?u:95.999-u; v=v<48.?v:95.999-v; u=clamp(u,.5,47.5); v=clamp(v,.5,47.5);
-    return texture(det,(vec2(mod(k,4.),floor(k/4.))*48.+vec2(u,v))/vec2(192.,144.)).r; }
-  float hs(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
-  float vnz(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(hs(i),hs(i+vec2(1,0)),f.x),mix(hs(i+vec2(0,1)),hs(i+vec2(1,1)),f.x),f.y); }
-  float fine(vec2 p){ return .6*vnz(p*.8)+.4*vnz(p*1.9+7.); }
-  void main(){ vec4 ov=texture(tex,uv); vec3 c=vc; vec3 N=normalize(vn);
-    if(vk>-.5 && vk<9.5 || vk>10.5){ float s = (vk==4.||vk==9.) ? 1.1 : (vk>=5.&&vk<=8.) ? .8 : .6; s*=uZ;
-      float h0=dsm(wp,vk), hx=dsm(wp+vec2(.9,0.),vk), hz=dsm(wp+vec2(0.,.9),vk), f0=fine(wp), fx=fine(wp+vec2(.9,0.)), fz=fine(wp+vec2(0.,.9));
-      vec2 g=(vec2(h0-hx,h0-hz)*5.+vec2(f0-fx,f0-fz)*3.)*s; N=normalize(N+vec3(g.x,0.,g.y)); c*=1.+(h0-.5)*.5*s+(f0-.5)*.25*s; }
-    c=mix(c,ov.rgb,ov.a); float d=max(dot(N,normalize(vec3(-.4,.8,-.35))),0.);
+  precision highp float; in vec3 vn; in vec2 uv; in vec3 vc; uniform sampler2D tex; out vec4 o;
+  void main(){ vec4 ov=texture(tex,uv); vec3 c=mix(vc,ov.rgb,ov.a); vec3 N=normalize(vn); float d=max(dot(N,normalize(vec3(-.4,.8,.5))),0.);
     o=vec4(c*(.40+.24*(.5+.5*N.y)+.66*d),1.); }`;
   const VT = `#version 300 es
   in vec3 p; in vec3 n; in vec3 c; uniform mat4 M; out vec3 vc; void main(){ vc=c; gl_Position=M*vec4(p,1.); }`;
@@ -1100,23 +1061,12 @@ Promise.resolve(window.__MD).then(d => {
     if (!gl) { box.remove(); box = null; throw new Error('WebGL2 is not available in this browser.'); }
     const w = buildWorld();
     G = { w, tp: prog(VS, FS), pp: prog(VT, FT) };
-    // terrain buffers
-    G.tva = gl.createVertexArray(); gl.bindVertexArray(G.tva);
-    let b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, w.P, gl.STATIC_DRAW);
-    let l = gl.getAttribLocation(G.tp, 'p'); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 40, 0);
-    l = gl.getAttribLocation(G.tp, 'n'); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 40, 12);
-    l = gl.getAttribLocation(G.tp, 'c'); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 40, 24);
-    l = gl.getAttribLocation(G.tp, 'k'); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 1, gl.FLOAT, false, 40, 36);
-    b = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, w.IDX, gl.STATIC_DRAW); G.ni = w.IDX.length;
     // tree buffers
     G.pva = gl.createVertexArray(); gl.bindVertexArray(G.pva);
     b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, w.tv, gl.STATIC_DRAW);
     for (const [nm, off] of [['p', 0], ['n', 12], ['c', 24]]) { l = gl.getAttribLocation(G.pp, nm); if (l >= 0) { gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 36, off); } }
     G.nt = w.tv.length / 9;
     // texture
-    G.det = gl.createTexture(); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, G.det); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 192, 144, 0, gl.RED, gl.UNSIGNED_BYTE, w.det);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.activeTexture(gl.TEXTURE0);
     G.tex = gl.createTexture(); upload();
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -1146,9 +1096,16 @@ Promise.resolve(window.__MD).then(d => {
   }
   const FOV = 35 * Math.PI / 180;
   const dist = () => { const t = Math.tan(FOV / 2), asp = W / H; return Math.max(G.w.span / (2 * t * asp), G.w.zspan * 0.85 / (2 * t)) * 1.08 / cam.zoom; };
-  function zoomBy(f) { cam.zoom = Math.max(0.5, Math.min(16, cam.zoom * f)); redraw(); }
+  function zoomBy(f) { cam.zoom = Math.max(0.5, Math.min(48, cam.zoom * f)); redraw(); }
   function resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); W = box.clientWidth; H = box.clientHeight; if (!W || !H) return; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px'; redraw(); }
   function redraw() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } }
+  function chunkGpu(c, m) {
+    chunkFree(c); c.vao = gl.createVertexArray(); gl.bindVertexArray(c.vao);
+    c.vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, c.vb); gl.bufferData(gl.ARRAY_BUFFER, m.v, gl.STATIC_DRAW);
+    for (const [nm, off] of [['p', 0], ['n', 12], ['c', 24]]) { const l = gl.getAttribLocation(G.tp, nm); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 36, off); }
+    c.ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, c.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.i, gl.STATIC_DRAW); c.n = m.i.length;
+  }
+  function chunkFree(c) { if (c.vao) { gl.deleteVertexArray(c.vao); gl.deleteBuffer(c.vb); gl.deleteBuffer(c.ib); c.vao = null; c.lod = -1; } }
   function draw() {
     if (!W || !H || !G) return;
     const d = dist(), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
@@ -1159,8 +1116,21 @@ Promise.resolve(window.__MD).then(d => {
     gl.enable(gl.DEPTH_TEST); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(G.tp); gl.uniformMatrix4fv(gl.getUniformLocation(G.tp, 'M'), false, M);
     gl.uniform4f(gl.getUniformLocation(G.tp, 'T'), G.w.x0, G.w.z0, 1 / G.w.span, 1 / G.w.zspan);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, G.tex); gl.uniform1i(gl.getUniformLocation(G.tp, 'tex'), 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, G.det); gl.uniform1i(gl.getUniformLocation(G.tp, 'det'), 1); gl.uniform1f(gl.getUniformLocation(G.tp, 'uZ'), Math.max(0, Math.min(1, (cam.zoom - 1.2) / 2.2))); gl.activeTexture(gl.TEXTURE0);
-    gl.bindVertexArray(G.tva); gl.drawElements(gl.TRIANGLES, G.ni, gl.UNSIGNED_INT, 0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, G.tex); gl.uniform1i(gl.getUniformLocation(G.tp, 'tex'), 0);
+    // each hex is built from the terrain model; resolution follows how large the hex is on screen
+    const tf = Math.tan(FOV / 2), asp = W / H, thr = [26, 52, 104], hys = [1.06, 0.82]; let budget = 320000, more = false;
+    for (const c of G.w.chunks) {
+      const dx = c.cx - eye[0], dy = -eye[1], dz = c.cz - eye[2], dd = Math.hypot(dx, dy, dz);
+      const cw = M[3] * c.cx + M[11] * c.cz + M[15] + M[7] * 10, nxx = (M[0] * c.cx + M[8] * c.cz + M[12] + M[4] * 10) / cw, nyy = (M[1] * c.cx + M[9] * c.cz + M[13] + M[5] * 10) / cw, rn = c.rad / (dd * tf);
+      c.vis = cw > 0 && Math.abs(nxx) < 1 + rn / asp && Math.abs(nyy) < 1 + rn; if (!c.vis) continue;
+      const hexPx = 42.1 / (dd * 2 * tf / H); let want = hexPx < thr[0] ? 0 : hexPx < thr[1] ? 1 : hexPx < thr[2] ? 2 : 3;
+      if (c.lod >= 0 && want !== c.lod) { const edge = want > c.lod ? thr[c.lod] * hys[0] : thr[want] * hys[1]; if (want > c.lod ? hexPx < edge : hexPx > edge) want = c.lod; }
+      if (want !== c.lod) { if (budget > 0 || c.lod < 0) { const m = G.w.merge(c, want); chunkGpu(c, m); c.lod = want; budget -= m.v.length / 9; } else more = true; }
+    }
+    gl.bindVertexArray(null);
+    for (const c of G.w.chunks) if (c.vis && c.vao) { gl.bindVertexArray(c.vao); gl.drawElements(gl.TRIANGLES, c.n, gl.UNSIGNED_INT, 0); }
+    let res = 0; for (const c of G.w.chunks) if (c.vao) res++; if (res > 40) for (const c of G.w.chunks) if (!c.vis && c.vao) chunkFree(c);
+    if (more) redraw();
     gl.useProgram(G.pp); gl.uniformMatrix4fv(gl.getUniformLocation(G.pp, 'M'), false, M);
     gl.bindVertexArray(G.pva); gl.drawArrays(gl.TRIANGLES, 0, G.nt);
   }
@@ -1270,18 +1240,18 @@ Promise.resolve(window.__MD).then(d => {
     ];
     const ORDER = [[0, 1, 2, 3, 4, 5, 6, 7], [8, 9, 10, 11, 12, 13, 14]];
 
-    function tileMesh(T, id) {
-      const s = R / N, idx = new Map(), P = [], b = MB(), f = MB(); const hh = (x, z) => T.h(x, z) - rimDrop(x, z), eps = 0.5, ox = hs(id, 1, 90) * 50, oz = hs(id, 2, 90) * 50;
+    function tileMesh(T, id, NN) {
+      NN = NN || N; const s = R / NN, idx = new Map(), P = [], b = MB(), f = MB(); const hh = (x, z) => T.h(x, z) - rimDrop(x, z), eps = 0.5, ox = hs(id, 1, 90) * 50, oz = hs(id, 2, 90) * 50;
       const fl = hx(T.col || MD[T.k].c), isW = T.water != null;
-      for (let i = -N; i <= N; i++) for (let j = -N; j <= N; j++) {
-        const d = i * j > 0 ? Math.abs(i) + Math.abs(j) : Math.max(Math.abs(i), Math.abs(j)); if (d > N) continue;
+      for (let i = -NN; i <= NN; i++) for (let j = -NN; j <= NN; j++) {
+        const d = i * j > 0 ? Math.abs(i) + Math.abs(j) : Math.max(Math.abs(i), Math.abs(j)); if (d > NN) continue;
         const x = s * i * 0.8660254, z = s * (i * 0.5 + j), y = hh(x, z);
         let nx = -(hh(x + eps, z) - hh(x - eps, z)) / (2 * eps), nz = -(hh(x, z + eps) - hh(x, z - eps)) / (2 * eps); const nl = Math.hypot(nx, 1, nz); nx /= nl; const ny = 1 / nl; nz /= nl;
         const tn = T.tint ? T.tint(x, z, y, ny) : [1, 1, 1, 0], col = T.tint ? tn : fl;
         idx.set(i + ',' + j, pv(b, x, y, z, nx, ny, nz, (x + ox) / (R * 1.9), (z + oz) / (R * 1.9), col, tn[3] || 0));
-        if (d === N) P.push([Math.atan2(z, x), x, y, z]);
+        if (d === NN) P.push([Math.atan2(z, x), x, y, z]);
       }
-      for (let i = -N; i <= N; i++) for (let j = -N; j <= N; j++) {
+      for (let i = -NN; i <= NN; i++) for (let j = -NN; j <= NN; j++) {
         const a = idx.get(i + ',' + j), u = idx.get((i + 1) + ',' + j), v = idx.get(i + ',' + (j + 1)), uv = idx.get((i + 1) + ',' + (j + 1));
         if (a != null && u != null && v != null) b.i.push(a, u, v); if (u != null && uv != null && v != null) b.i.push(u, uv, v);
       }
@@ -1358,6 +1328,7 @@ Promise.resolve(window.__MD).then(d => {
       window.addEventListener('resize', size2);
     }
     return {
+      tileMesh, TY, ORDER,
       show() { try { if (!el) init(); if (!tiles) { if (build()) size2(); } size2(); } catch (e) { console.error(e); } },
       dbg: () => ({ tiles, cm }),
     };
