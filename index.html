@@ -1133,7 +1133,7 @@ Promise.resolve(window.__MD).then(d => {
     for (const c of G.w.chunks) {
       const dx = c.cx - eye[0], dy = -eye[1], dz = c.cz - eye[2], dd = Math.hypot(dx, dy, dz);
       const cw = M[3] * c.cx + M[11] * c.cz + M[15] + M[7] * 10, nxx = (M[0] * c.cx + M[8] * c.cz + M[12] + M[4] * 10) / cw, nyy = (M[1] * c.cx + M[9] * c.cz + M[13] + M[5] * 10) / cw, rn = c.rad / (dd * tf);
-      c.vis = cw > 0 && Math.abs(nxx) < 1 + rn / asp && Math.abs(nyy) < 1 + rn; if (!c.vis) continue;
+      c.vis = cw < c.rad * 2 || (Math.abs(nxx) < 1.15 + 1.6 * rn / asp && Math.abs(nyy) < 1.15 + 1.6 * rn); if (!c.vis) continue;
       const hexPx = 42.1 / (dd * 2 * tf / H); let want = hexPx < thr[0] ? 0 : hexPx < thr[1] ? 1 : hexPx < thr[2] ? 2 : 3;
       if (c.lod >= 0 && want !== c.lod) { const edge = want > c.lod ? thr[c.lod] * hys[0] : thr[want] * hys[1]; if (want > c.lod ? hexPx < edge : hexPx > edge) want = c.lod; }
       if (want !== c.lod) { if (budget > 0 || c.lod < 0) { const m = G.w.merge(c, want); chunkGpu(c, m); c.lod = want; budget -= m.v.length / 9; } else more = true; }
@@ -1279,6 +1279,15 @@ Promise.resolve(window.__MD).then(d => {
       for (let k = 0; k < P.length; k++) {
         const p = P[k], q = P[(k + 1) % P.length], mx = (p[1] + q[1]) / 2, mz = (p[3] + q[3]) / 2, kd = ((Math.round(Math.atan2(mz, mx) / (Math.PI / 3)) % 6) + 6) % 6, a = kd * (Math.PI / 3), g = map ? sk[kd] : f;
         const nx = Math.cos(a), nz = Math.sin(a), base = g.v.length / STR, c1 = isW ? wt : T.canopy ? fl.map(v => v * 0.75) : top0, c2 = isW ? wb : T.canopy ? [0.15, 0.11, 0.07] : bot0;
+        if (T.canopy && !isW) {
+          // the side of a forest is more tree crowns, fading into shade towards the ground
+          const SG = 16, VL = 5, len = Math.hypot(q[1] - p[1], q[3] - p[3]);
+          for (let a2 = 0; a2 <= SG; a2++) { const u = a2 / SG, X = p[1] + (q[1] - p[1]) * u, Z = p[3] + (q[3] - p[3]) * u, Y = p[2] + (q[2] - p[2]) * u;
+            for (let l = 0; l <= VL; l++) { const t = l / VL, yy = Y + (bot - Y) * t, cr = crowns(u * len, yy * 0.9 + 40), sh = (0.55 + 0.45 * cr) * (1 - 0.4 * t), off = 1.6 * cr * (1 - t * 0.5) * Math.min(1, Math.min(u, 1 - u) * 8);
+              pv(g, X + nx * off, yy, Z + nz * off, nx, 0.6 * (1 - cr) + 0.15, nz, 0, 0, [fl[0] * sh * 1.5, fl[1] * sh * 1.5, fl[2] * sh * 1.5], 0); } }
+          for (let a2 = 0; a2 < SG; a2++) for (let l = 0; l < VL; l++) { const i0 = base + a2 * (VL + 1) + l, i1 = i0 + (VL + 1); g.i.push(i0, i1, i0 + 1, i1, i1 + 1, i0 + 1); }
+          continue;
+        }
         pv(g, p[1], p[2], p[3], nx, 0, nz, 0, 0, c1, 0); pv(g, q[1], q[2], q[3], nx, 0, nz, 0, 0, c1, 0); pv(g, p[1], bot, p[3], nx, 0, nz, 0, 0, c2, 0); pv(g, q[1], bot, q[3], nx, 0, nz, 0, 0, c2, 0);
         g.i.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
       }
