@@ -1222,7 +1222,12 @@ Promise.resolve(window.__MD).then(d => {
     const mold = (k, f) => { const o = MD[k]; return (x, z) => f(smp(o.m, x, z), smp(o.d, x, z), x, z); };
     const edgeF = (x, z) => 1 - sstep(0.8, 1, hexn(x, z));
     // forest = a canopy layer lying on the ground: constant height at the hex edge so neighbouring forests join, lumpy on top
-    const canopy = (M, D, x, z) => 4 + 7 * (0.5 + (Math.max(0, Math.min(1, 0.35 * M + 0.65 * (0.5 + D * 0.3))) - 0.5) * (1 - sstep(0.72, 1, hexn(x, z))));
+    const crowns = (x, z) => { const SX = 5.6, SZ = 4.9; let best = 1e9, r2 = 1; const j0 = Math.floor(z / SZ);
+      for (let j = j0 - 1; j <= j0 + 1; j++) { const off = (j & 1) ? SX / 2 : 0, i0 = Math.floor((x - off) / SX);
+        for (let i = i0 - 1; i <= i0 + 1; i++) { const h1 = Math.sin(i * 127.1 + j * 311.7) * 43758.5, h2 = Math.sin(i * 269.5 + j * 183.3) * 24634.6, rx = h1 - Math.floor(h1), rz = h2 - Math.floor(h2);
+          const cx = (i + 0.5 + (rx - 0.5) * 0.35) * SX + off, cz = (j + 0.5 + (rz - 0.5) * 0.35) * SZ, rr = 2.9 + 0.5 * rx, d = ((x - cx) ** 2 + (z - cz) ** 2) / (rr * rr); if (d < best) best = d; } }
+      return Math.sqrt(Math.max(0, 1 - best)); };
+    const canopy = (M, D, x, z) => { const e = 1 - sstep(0.72, 1, hexn(x, z)); return 3 + e * (3.6 * crowns(x, z) + 0.6 * (M - 0.5)) + (1 - e) * 1.8; };
     const pool = (x, z) => sstep(0.5, 0.68, fbm(x / 9, z / 9, 9));
     const POND = [-3.5, 3];
     const pondD = (x, z) => Math.hypot(x - POND[0], z - POND[1]);
