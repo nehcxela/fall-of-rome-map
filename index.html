@@ -1250,7 +1250,7 @@ Promise.resolve(window.__MD).then(d => {
       const HW = G.w.AP * 0.7, S = Math.max(1, (80 * 2 * tf * d / H) / (2 * HW));
       gl.useProgram(G.sp); gl.uniformMatrix4fv(gl.getUniformLocation(G.sp, 'M'), false, M); gl.uniform3fv(gl.getUniformLocation(G.sp, 'R'), R); gl.uniform3fv(gl.getUniformLocation(G.sp, 'U'), U); gl.uniform1f(gl.getUniformLocation(G.sp, 'S'), S); gl.uniform1f(gl.getUniformLocation(G.sp, 'HW'), HW);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, G.stex); gl.uniform1i(gl.getUniformLocation(G.sp, 'tex'), 0);
-      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.bindVertexArray(G.sva); gl.drawArrays(gl.TRIANGLES, 0, G.ns); gl.disable(gl.BLEND); gl.bindVertexArray(null);
+      gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.bindVertexArray(G.sva); gl.drawArrays(gl.TRIANGLES, 0, G.ns); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.bindVertexArray(null);
     }
   }
   // ---- terrain model: one sculpted hex for each terrain in the Key (Europe textures), shown under the 3D map
