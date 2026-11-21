@@ -994,45 +994,53 @@ Promise.resolve(window.__MD).then(d => {
     const CW = 8 * 2 * R * 0.866, CH = 8 * 1.5 * R, cmap = new Map(), chunks = [];
     for (let i = 0; i < n; i++) { const key = Math.floor((hx[i] - x0) / CW) + ',' + Math.floor((hz[i] - z0) / CH); let c = cmap.get(key); if (!c) { c = { hs: [], lod: -1, vao: null, vis: false }; cmap.set(key, c); chunks.push(c); } c.hs.push(i); }
     for (const c of chunks) { let a = 0, b = 0; for (const i of c.hs) { a += hx[i]; b += hz[i]; } c.cx = a / c.hs.length; c.cz = b / c.hs.length; c.rad = 0; for (const i of c.hs) c.rad = Math.max(c.rad, Math.hypot(hx[i] - c.cx, hz[i] - c.cz) + R); c.rad += 40; }
-    // one mesh per terrain and resolution (every hex of a kind is the same mould)
-    const cache = new Map();
-    const conv = (src, v, off) => { for (let k = 0; k < src.length / 12; k++) { const s = k * 12, o = (off + k) * 9, sn = src[s + 11]; v[o] = src[s]; v[o + 1] = src[s + 1]; v[o + 2] = src[s + 2]; v[o + 3] = src[s + 3]; v[o + 4] = src[s + 4]; v[o + 5] = src[s + 5];
-      v[o + 6] = src[s + 8] + (0.95 - src[s + 8]) * sn; v[o + 7] = src[s + 9] + (0.97 - src[s + 9]) * sn; v[o + 8] = src[s + 10] + (1 - src[s + 10]) * sn; } };
-    const pack = (bufs) => { let nv = 0, ni = 0; for (const q of bufs) { nv += q.v.length / 12; ni += q.i.length; } const v = new Float32Array(nv * 9), ix = new Uint32Array(ni); let vo = 0, io = 0; for (const q of bufs) { conv(q.v, v, vo); for (let k = 0; k < q.i.length; k++) ix[io + k] = q.i[k] + vo; vo += q.v.length / 12; io += q.i.length; } return { v, i: ix, nv }; };
-    const tile = (t, li) => {
-      const key = t * 8 + li; let m = cache.get(key); if (m) return m;
-      const q = TM.tileMesh(TM.TY[T2[t]], 0, LV[li], true); m = pack([q.b, q.f]); m.sk = q.sk.map(k => pack([k])); cache.set(key, m); return m;
+    // ONE continuous landscape: terrain is blended across hex edges from the terrain model, then sampled on a regular grid per chunk
+    const SM = [8, 4, 2, 1], SIG2 = 250 * K * K, hc = new Int32Array(n);
+    chunks.forEach((c, ci) => { c.id = ci; for (const i of c.hs) hc[i] = ci; c.bx0 = 1e9; c.bx1 = -1e9; c.bz0 = 1e9; c.bz1 = -1e9; for (const i of c.hs) { c.bx0 = Math.min(c.bx0, hx[i] - R); c.bx1 = Math.max(c.bx1, hx[i] + R); c.bz0 = Math.min(c.bz0, hz[i] - R); c.bz1 = Math.max(c.bz1, hz[i] + R); } });
+    const cand = new Int32Array(8), cw = new Float64Array(8), dd = new Float64Array(8); let nearI = -1;
+    const near = (px, pz) => {
+      const cx = Math.floor((px - x0) / cs), cz = Math.floor((pz - z0) / cs); let nn = 0, best = 1e18, bi = -1;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const X = cx + a, Z = cz + b; if (X < 0 || Z < 0 || X >= gx || Z >= gz) continue;
+        for (const j of bins[X + gx * Z]) { const d = (hx[j] - px) ** 2 + (hz[j] - pz) ** 2; if (d > 4.84 * R * R) continue; if (nn < 8) { cand[nn] = j; dd[nn] = d; nn++; } if (d < best) { best = d; bi = j; } } }
+      if (bi < 0 || TM.hexn((px - hx[bi]) / K, (pz - hz[bi]) / K) > 1.17) return 0;
+      let sum = 0; for (let k = 0; k < nn; k++) { let w = Math.exp(-(dd[k] - best) / SIG2); if (w < 0.003) w = 0; cw[k] = w; sum += w; } for (let k = 0; k < nn; k++) cw[k] /= sum;
+      nearI = bi; return nn;
     };
-    const CA = [0, 1, 2, 3, 4, 5].map(k => Math.cos(k * Math.PI / 3)), SA = [0, 1, 2, 3, 4, 5].map(k => Math.sin(k * Math.PI / 3)), SAND = [0.83, 0.77, 0.58], FOAM = [0.93, 0.91, 0.82];
-    const sst = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-    // a side wall is only drawn where the landmass really ends: the edge of the map, a forest layer meeting other ground, or water stepping down
-    const isF = t => t === 4 || t === 9;
-    const wall = (i, d) => { const j = nbr[i * 6 + d]; if (j < 0) return true; const t = hk[i], u = hk[j]; if (t >= 13) return u >= 13 && t === 13 && u === 14; if (isF(t)) return !isF(u); return false; };
+    const SAND = [0.83, 0.77, 0.58], FOAM = [0.93, 0.91, 0.82], sst = TM.sstep;
     const merge = (c, li) => {
-      let nv = 0, ni = 0; const walls = [];
-      for (const i of c.hs) { const m = tile(hk[i], li); nv += m.nv; ni += m.i.length; for (let d = 0; d < 6; d++) if (wall(i, d)) { const k = m.sk[d]; nv += k.nv; ni += k.i.length; } }
-      const v = new Float32Array(nv * 9), ix = new Uint32Array(ni); let vo = 0, io = 0;
-      const put = (m, X, Z, msk, lv) => {
-        const sv = m.v, base = vo / 9;
-        for (let k = 0; k < m.nv; k++) {
-          const s = k * 9, o = vo + s, lx = sv[s], lz = sv[s + 2]; let y = sv[s + 1], nx = sv[s + 3], ny = sv[s + 4], nz = sv[s + 5], r = sv[s + 6], g = sv[s + 7], b = sv[s + 8];
-          if (msk) { let sw = 0, fo = 0, sb = 0, ex = 0, ez = 0, tl = y;
-            for (let d = 0; d < 6; d++) if (msk >> d & 1) { const p = (lx * CA[d] + lz * SA[d]) / A24; sw = Math.max(sw, sst(0.58, 0.85, p)); fo = Math.max(fo, sst(0.86, 0.96, p));
-              const t = Math.max(0, Math.min(1, (p - 0.45) / 0.55)), bb = t * t * (3 - 2 * t); if (bb > sb) { sb = bb; tl = lv[d]; } if (t > 0 && t < 1) { const ds = 6 * t * (1 - t) / 0.55, gg = (lv[d] - y) * ds / A24; ex += gg * CA[d]; ez += gg * SA[d]; } }
-            if (sb > 0) { y += (tl - y) * sb; nx = nx / ny - ex; nz = nz / ny - ez; ny = 1; const l = Math.hypot(nx, 1, nz); nx /= l; ny /= l; nz /= l; }
-            if (sw > 0) { const a = sw * 0.95; r += (SAND[0] - r) * a; g += (SAND[1] - g) * a; b += (SAND[2] - b) * a; const f = fo * 0.7; r += (FOAM[0] - r) * f; g += (FOAM[1] - g) * f; b += (FOAM[2] - b) * f; } }
-          v[o] = lx * K + X; v[o + 1] = y; v[o + 2] = lz * K + Z; v[o + 3] = nx; v[o + 4] = ny; v[o + 5] = nz; v[o + 6] = r; v[o + 7] = g; v[o + 8] = b;
-        }
-        for (let k = 0; k < m.i.length; k++) ix[io + k] = m.i[k] + base;
-        vo += m.nv * 9; io += m.i.length;
-      };
-      for (const i of c.hs) {
-        const m = tile(hk[i], li), msk = mask[i], lv = [0, 0, 0, 0, 0, 0];
-        if (msk) for (let d = 0; d < 6; d++) if (msk >> d & 1) lv[d] = hk[nbr[i * 6 + d]] === 13 ? -3 : -4.5;
-        put(m, hx[i], hz[i], msk, lv);
-        for (let d = 0; d < 6; d++) if (wall(i, d)) put(m.sk[d], hx[i], hz[i], 0, lv);
+      const st = SM[li] * K, i0 = Math.floor((c.bx0 - x0) / st) - 1, i1 = Math.ceil((c.bx1 - x0) / st) + 1, j0 = Math.floor((c.bz0 - z0) / st) - 1, j1 = Math.ceil((c.bz1 - z0) / st) + 1, nx = i1 - i0 + 1, nz = j1 - j0 + 1, W = nx + 2, N2 = W * (nz + 2);
+      const H = new Float32Array(N2), V = new Uint8Array(N2), CM = new Float32Array(N2), WW = new Float32Array(N2), OW = new Int32Array(N2).fill(-1);
+      for (let gj = -1; gj <= nz; gj++) for (let gi = -1; gi <= nx; gi++) {
+        const q = (gj + 1) * W + gi + 1, px = x0 + (i0 + gi) * st, pz = z0 + (j0 + gj) * st, m = near(px, pz); if (!m) continue;
+        const wx = px / K, wz = pz / K; let h = 0, fw = 0, ww = 0;
+        for (let k = 0; k < m; k++) { const w = cw[k]; if (!w) continue; const j = cand[k], t = hk[j]; h += w * TM.ground(t, wx, wz, (px - hx[j]) / K, (pz - hz[j]) / K); if (t === 4 || t === 9) fw += w; if (t >= 13) ww += w; }
+        const cm = sst(0.42, 0.58, fw); if (cm > 0) h += cm * TM.canopyH(wx, wz);
+        H[q] = h; V[q] = 1; CM[q] = cm; WW[q] = ww; OW[q] = hc[nearI];
       }
-      return { v, i: ix };
+      const v = new Float32Array(nx * nz * 9), ix = [], sk = [], skI = []; const stm = SM[li];
+      for (let gj = 0; gj < nz; gj++) for (let gi = 0; gi < nx; gi++) {
+        const q = (gj + 1) * W + gi + 1; if (!V[q]) continue;
+        const h = H[q], hl = V[q - 1] ? H[q - 1] : h, hr = V[q + 1] ? H[q + 1] : h, hu = V[q - W] ? H[q - W] : h, hd = V[q + W] ? H[q + W] : h;
+        let nxv = -(hr - hl) / (2 * stm), nzv = -(hd - hu) / (2 * stm); const nl = Math.hypot(nxv, 1, nzv); nxv /= nl; nzv /= nl; const nyv = 1 / nl;
+        const px = x0 + (i0 + gi) * st, pz = z0 + (j0 + gj) * st, m = near(px, pz), wx = px / K, wz = pz / K; let r = 0, g = 0, b = 0, sn = 0;
+        for (let k = 0; k < m; k++) { const w = cw[k]; if (!w) continue; const j = cand[k], t = hk[j], tt = t === 4 ? 0 : t, cc = TM.colT(tt, wx, wz, (px - hx[j]) / K, (pz - hz[j]) / K, h, nyv); r += w * cc[0]; g += w * cc[1]; b += w * cc[2]; sn += w * cc[3]; }
+        const cm = CM[q], ww = WW[q];
+        if (cm > 0) { const sh = 0.8 + 0.4 * TM.crowns(wx, wz), f = TM.CB[4]; r += (f[0] * sh - r) * cm; g += (f[1] * sh - g) * cm; b += (f[2] * sh - b) * cm; sn *= 1 - cm; }
+        if (sn > 0) { r += (0.95 - r) * sn; g += (0.97 - g) * sn; b += (1 - b) * sn; }
+        const sand = sst(0.03, 0.2, ww) * (1 - sst(0.4, 0.52, ww)) * (1 - cm) * 0.95, foam = Math.max(0, 1 - Math.abs(ww - 0.5) / 0.06) * (1 - cm) * 0.7;
+        r += (SAND[0] - r) * sand; g += (SAND[1] - g) * sand; b += (SAND[2] - b) * sand; r += (FOAM[0] - r) * foam; g += (FOAM[1] - g) * foam; b += (FOAM[2] - b) * foam;
+        const o = (gj * nx + gi) * 9; v[o] = px; v[o + 1] = h; v[o + 2] = pz; v[o + 3] = nxv; v[o + 4] = nyv; v[o + 5] = nzv; v[o + 6] = r; v[o + 7] = g; v[o + 8] = b;
+      }
+      for (let gj = 0; gj < nz - 1; gj++) for (let gi = 0; gi < nx - 1; gi++) {
+        const q = (gj + 1) * W + gi + 1; if (OW[q] !== c.id || !V[q] || !V[q + 1] || !V[q + W] || !V[q + W + 1]) continue;
+        const a = gj * nx + gi, bb = a + 1, cc = a + nx, d = cc + 1; ix.push(a, cc, bb, bb, cc, d);
+        // a short skirt where the neighbouring chunk (possibly at another resolution) takes over, so no cracks show
+        const own = (u, w) => u >= 0 && w >= 0 && u < nx - 1 && w < nz - 1 && OW[(w + 1) * W + u + 1] === c.id && V[(w + 1) * W + u + 1] && V[(w + 1) * W + u + 2] && V[(w + 2) * W + u + 1] && V[(w + 2) * W + u + 2];
+        const E = [[own(gi, gj - 1), a, bb], [own(gi, gj + 1), cc, d], [own(gi - 1, gj), a, cc], [own(gi + 1, gj), bb, d]];
+        for (const [ok, p1, p2] of E) if (!ok) { const k = sk.length / 9; for (const p of [p1, p2]) { for (let z = 0; z < 9; z++) sk.push(v[p * 9 + z]); } for (const p of [p1, p2]) { for (let z = 0; z < 9; z++) sk.push(z === 1 ? v[p * 9 + 1] - 4 : v[p * 9 + z]); } skI.push(k, k + 2, k + 1, k + 1, k + 2, k + 3, k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+      }
+      const nv = v.length / 9, vv = new Float32Array(v.length + sk.length); vv.set(v); vv.set(sk, v.length); for (const t of skI) ix.push(t + nv);
+      return { v: vv, i: new Uint32Array(ix) };
     };
     // rivers and roads are the 2D layer images drawn over the ground (with transparency); they obey the Rivers / Roads switches
     const TW = gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 8192 ? 6144 : 4096, TH = TW / 2, sx = TW / (x1 - x0), sz = TH / (z1 - z0);
@@ -1258,6 +1266,27 @@ Promise.resolve(window.__MD).then(d => {
     ];
     const ORDER = [[0, 1, 2, 3, 4, 5, 6, 7], [8, 9, 10, 11, 12, 13, 14]];
 
+    // ---- continuous landmass: every terrain gives a ground height and colour at any point; the map blends them across hex edges
+    const MAPT = [0, 1, 2, 3, 4, 8, 9, 10, 11, 5, 12, 6, 7, 13, 14], CB = MAPT.map(i => hx(TY[i].col || MD[TY[i].k].c));
+    const tri = v => { let u = ((v + 24) % 96 + 96) % 96; if (u > 48) u = 96 - u; return u - 24; };
+    const FA = [[1.0, 0.26, 'grass'], [0.8, 0.24, 'plains'], [1.2, 0.26, 'desert'], [0.9, 0.26, 'tundra']];
+    const ground = (t, wx, wz, lx, lz) => {
+      if (t < 4 || t === 4) { const a = FA[t === 4 ? 0 : t], o = MD[a[2]], x = tri(wx), z = tri(wz); return (t === 4 ? 0.5 : 1) * (a[0] * (smp(o.m, x, z) - 0.5) + a[1] * smp(o.d, x, z)); }
+      if (t >= 5 && t <= 8) return TY[t + 3].h(lx, lz);
+      if (t === 9) { const d = dome(qq(lx, lz)); return 21 * d + 5 * (smp(MD.forest_hills.m, lx, lz) - 0.5) * d; }
+      if (t === 10) return TY[12].h(lx, lz);
+      if (t === 11) { const o = MD.marsh, x = tri(wx), z = tri(wz); return -0.9 + 0.6 * (smp(o.m, x, z) - 0.5) + 0.22 * smp(o.d, x, z) - 1.3 * pool(wx, wz); }
+      if (t === 12) return TY[7].h(lx, lz);
+      return (t === 13 ? -3 : -4.5) + 0.3 * (fbm(wx / 8, wz / 8, t === 13 ? 11 : 12) - 0.5);
+    };
+    const canopyH = (wx, wz) => 3 + 3.6 * crowns(wx, wz) + 0.6 * (smp(MD.forest.m, tri(wx), tri(wz)) - 0.5);
+    const colT = (t, wx, wz, lx, lz, y, ny) => {
+      if (t === 10) return TY[12].tint(lx, lz, y, ny);
+      if (t === 11) return TY[6].tint(wx, wz);
+      if (t === 12) { const k = 1 - sstep(7.5, 9.5, pondD(lx, lz)), c = mixc(CB[12], [0.15, 0.45, 0.64], k); return [c[0], c[1], c[2], 0]; }
+      const c = CB[t]; return [c[0], c[1], c[2], 0];
+    };
+
     function tileMesh(T, id, NN, map) {
       NN = NN || N; const s = R / NN, idx = new Map(), P = [], b = MB(), f = MB(); const hh = map ? T.h : (x, z) => T.h(x, z) - rimDrop(x, z), eps = 0.5, ox = hs(id, 1, 90) * 50, oz = hs(id, 2, 90) * 50;
       const fl = hx(T.col || MD[T.k].c), isW = T.water != null;
@@ -1356,7 +1385,7 @@ Promise.resolve(window.__MD).then(d => {
       window.addEventListener('resize', size2);
     }
     return {
-      tileMesh, TY, ORDER,
+      tileMesh, TY, ORDER, ground, canopyH, colT, crowns, CB, hexn, sstep,
       show() { try { if (!el) init(); if (!tiles) { if (build()) size2(); } size2(); } catch (e) { console.error(e); } },
       dbg: () => ({ tiles, cm }),
     };
