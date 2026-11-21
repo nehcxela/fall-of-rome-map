@@ -1278,7 +1278,7 @@ Promise.resolve(window.__MD).then(d => {
     const canopy = (M, D, x, z) => { const e = 1 - sstep(0.72, 1, hexn(x, z)); return 3 + e * (3.6 * crowns(x, z) + 0.6 * (M - 0.5)) + (1 - e) * 1.8; };
     const pool = (x, z) => sstep(0.5, 0.68, fbm(x / 9, z / 9, 9));
     const POND = [-3.5, 3];
-    const pondD = (x, z) => Math.hypot(x - POND[0], z - POND[1]);
+    const pondD = (x, z) => Math.hypot(x - POND[0], z - POND[1]) / 0.66;
     const TY = [
       { n: 'Grassland', k: 'grass', h: mold('grass', (M, D, x, z) => (1.0 * (M - 0.5) + 0.26 * D) * edgeF(x, z)) },
       { n: 'Plains', k: 'plains', h: mold('plains', (M, D, x, z) => (0.8 * (M - 0.5) + 0.24 * D) * edgeF(x, z)) },
@@ -1290,7 +1290,7 @@ Promise.resolve(window.__MD).then(d => {
         tint: (x, z) => { const p = pool(x, z), g = fbm(x / 6, z / 6, 3); let c = mixc([0.33, 0.47, 0.2], [0.46, 0.58, 0.3], g); c = mixc(c, [0.3, 0.6, 0.52], p * 0.85); return [c[0], c[1], c[2], 0]; } },
       { n: 'Oasis / floodplain', k: 'desert', h: mold('oasis', (M, D, x, z) => { const d = pondD(x, z); return (1.2 * (M - 0.5) + 0.24 * D) * edgeF(x, z) + 0.9 * Math.exp(-((d - 12) ** 2) / 30) - 3.4 * (1 - sstep(4, 10.5, d)); }),
         extra: (f) => { const n = 28, base = f.v.length / STR; pv(f, POND[0], -1.5, POND[1], 0, 1, 0, 0, 0, [0.2, 0.55, 0.7], 0);
-          for (let k = 0; k <= n; k++) { const a = k / n * 6.2832; pv(f, POND[0] + 9.2 * Math.cos(a), -1.5, POND[1] + 9.2 * Math.sin(a), 0, 1, 0, 0, 0, [0.12, 0.38, 0.58], 0); }
+          for (let k = 0; k <= n; k++) { const a = k / n * 6.2832; pv(f, POND[0] + 6.1 * Math.cos(a), -1.5, POND[1] + 6.1 * Math.sin(a), 0, 1, 0, 0, 0, [0.12, 0.38, 0.58], 0); }
           for (let k = 0; k < n; k++) f.i.push(base, base + 1 + k, base + 2 + k); } },
       { n: 'Hills (grass)', k: 'grass_hills', h: mold('grass_hills', (M, D, x, z) => { const d = dome(qq(x, z)); return d * (25 + 8 * (M - 0.5)) + 1.6 * D * Math.sqrt(d); }) },
       { n: 'Hills (plains)', k: 'plains_hills', h: mold('plains_hills', (M, D, x, z) => { const d = dome(qq(x, z)); return d * (25 + 8 * (M - 0.5)) + 1.6 * D * Math.sqrt(d); }) },
