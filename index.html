@@ -1025,10 +1025,10 @@ Promise.resolve(window.__MD).then(d => {
     };
     const WALLS = [[0.86, 0.8, 0.66], [0.8, 0.7, 0.52], [0.9, 0.86, 0.76], [0.74, 0.68, 0.6]], ROOFS = [[0.62, 0.3, 0.2], [0.55, 0.26, 0.17], [0.46, 0.32, 0.24], [0.4, 0.4, 0.42]];
     for (const k of Object.keys(D.cities)) { const hh = byKey[k]; if (!hh || hh[3] >= 13) continue; const x = hh[1], z = hh[2], y = hAt(x, z), seed = x * 0.37 + z * 1.13, rn = i => { const q = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return q - Math.floor(q); };
-      CITY.push({ x, z, y, name: D.cities[k][0], fac: D.cities[k][1], k });
+      const pop = D.cities[k][2] || 0; CITY.push({ x, z, y, name: D.cities[k][0], fac: D.cities[k][1], k, pop });
       house(x, y - 0.3, z, AP * 0.3, AP * 0.2, AP * 0.24, rn(1) * 0.6, WALLS[0], ROOFS[0], 0);
       house(x + AP * 0.2, y - 0.3, z - AP * 0.05, AP * 0.1, AP * 0.34, AP * 0.1, 0.3, WALLS[2], ROOFS[3], AP * 0.16);
-      for (let i = 0; i < 12; i++) { const a = rn(i + 5) * 6.2832, r = AP * (0.3 + 0.28 * rn(i + 30)), w = AP * (0.1 + 0.07 * rn(i + 60)), d = AP * (0.09 + 0.06 * rn(i + 90)), ht = AP * (0.07 + 0.08 * rn(i + 120));
+      for (let i = 0, nh = Math.min(26, 7 + Math.round(pop * 1.6)); i < nh; i++) { const a = rn(i + 5) * 6.2832, r = AP * (0.3 + 0.28 * rn(i + 30)), w = AP * (0.1 + 0.07 * rn(i + 60)), d = AP * (0.09 + 0.06 * rn(i + 90)), ht = AP * (0.07 + 0.08 * rn(i + 120));
         house(x + Math.cos(a) * r, y - 0.3, z + Math.sin(a) * r * 0.9, w, ht, d, a + rn(i + 150) * 1.2, WALLS[Math.floor(rn(i + 7) * 4)], ROOFS[Math.floor(rn(i + 11) * 4)], 0); } }
     for (const c of chunks) c.cities = CITY.filter(q => q.x > c.bx0 - AP && q.x < c.bx1 + AP && q.z > c.bz0 - AP && q.z < c.bz1 + AP);
     const SAND = [0.83, 0.77, 0.58], FOAM = [0.93, 0.91, 0.82], sst = TM.sstep;
@@ -1163,7 +1163,8 @@ Promise.resolve(window.__MD).then(d => {
     { const cs = w.cities, CWd = 256, CHt = 64, cols = 4, rows = Math.ceil(cs.length / cols), at = document.createElement('canvas'); at.width = CWd * cols; at.height = CHt * rows; const a2 = at.getContext('2d'); const sv = [];
       cs.forEach((c, i) => { const ox = (i % cols) * CWd, oy = Math.floor(i / cols) * CHt; a2.fillStyle = 'rgba(30,24,18,0.88)'; a2.beginPath(); a2.roundRect(ox + 3, oy + 8, CWd - 6, CHt - 16, 10); a2.fill(); a2.lineWidth = 3; a2.strokeStyle = 'rgba(214,190,130,0.95)'; a2.stroke();
         a2.fillStyle = (OWNERS[c.fac] ? OWNERS[c.fac][1] : '#d8c36a'); a2.beginPath(); a2.roundRect(ox + 10, oy + 16, 14, CHt - 32, 4); a2.fill(); a2.lineWidth = 2; a2.strokeStyle = 'rgba(243,232,207,0.85)'; a2.stroke();
-        a2.fillStyle = '#f3e8cf'; a2.font = '600 26px Georgia, serif'; a2.textBaseline = 'middle'; a2.textAlign = 'center'; let fs = 26; while (a2.measureText(c.name).width > CWd - 56 && fs > 12) { fs--; a2.font = `600 ${fs}px Georgia, serif`; } a2.fillText(c.name, ox + CWd / 2 + 9, oy + CHt / 2 + 1);
+        if (c.pop) { a2.fillStyle = '#f3e8cf'; a2.beginPath(); a2.arc(ox + CWd - 30, oy + CHt / 2, 17, 0, 6.2832); a2.fill(); a2.lineWidth = 3; a2.strokeStyle = 'rgba(214,190,130,0.95)'; a2.stroke(); a2.fillStyle = '#2a2016'; a2.font = '700 21px Georgia, serif'; a2.textBaseline = 'middle'; a2.textAlign = 'center'; a2.fillText(String(c.pop), ox + CWd - 30, oy + CHt / 2 + 1); }
+        a2.fillStyle = '#f3e8cf'; a2.font = '600 26px Georgia, serif'; a2.textBaseline = 'middle'; a2.textAlign = 'center'; let fs = 26; while (a2.measureText(c.name).width > CWd - (c.pop ? 92 : 56) && fs > 12) { fs--; a2.font = `600 ${fs}px Georgia, serif`; } a2.fillText(c.name, ox + CWd / 2 + (c.pop ? -4 : 9), oy + CHt / 2 + 1);
         const u0 = ox / at.width, u1 = (ox + CWd) / at.width, v0 = oy / at.height, v1 = (oy + CHt) / at.height, y = c.y + w.AP * 0.9;
         for (const [kx, ky, u, v] of [[-1, -1, u0, v1], [1, -1, u1, v1], [1, 1, u1, v0], [-1, -1, u0, v1], [1, 1, u1, v0], [-1, 1, u0, v0]]) sv.push(c.x, y, c.z, kx, ky, u, v); });
       G.sp = prog(VSP, FSP); G.sva = gl.createVertexArray(); gl.bindVertexArray(G.sva); const sb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, sb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sv), gl.STATIC_DRAW);
