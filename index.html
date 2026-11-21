@@ -1162,7 +1162,7 @@ Promise.resolve(window.__MD).then(d => {
     // city name signs: one textured quad per city, always facing the camera
     { const cs = w.cities, CWd = 256, CHt = 64, cols = 4, rows = Math.ceil(cs.length / cols), at = document.createElement('canvas'); at.width = CWd * cols; at.height = CHt * rows; const a2 = at.getContext('2d'); const sv = [];
       cs.forEach((c, i) => { const ox = (i % cols) * CWd, oy = Math.floor(i / cols) * CHt; a2.fillStyle = 'rgba(30,24,18,0.88)'; a2.beginPath(); a2.roundRect(ox + 3, oy + 8, CWd - 6, CHt - 16, 10); a2.fill(); a2.lineWidth = 3; a2.strokeStyle = 'rgba(214,190,130,0.95)'; a2.stroke();
-        a2.fillStyle = (typeof COLS !== 'undefined' && COLS[c.fac]) || '#d8c36a'; a2.beginPath(); a2.roundRect(ox + 10, oy + 16, 14, CHt - 32, 4); a2.fill();
+        a2.fillStyle = (OWNERS[c.fac] ? OWNERS[c.fac][1] : '#d8c36a'); a2.beginPath(); a2.roundRect(ox + 10, oy + 16, 14, CHt - 32, 4); a2.fill(); a2.lineWidth = 2; a2.strokeStyle = 'rgba(243,232,207,0.85)'; a2.stroke();
         a2.fillStyle = '#f3e8cf'; a2.font = '600 26px Georgia, serif'; a2.textBaseline = 'middle'; a2.textAlign = 'center'; let fs = 26; while (a2.measureText(c.name).width > CWd - 56 && fs > 12) { fs--; a2.font = `600 ${fs}px Georgia, serif`; } a2.fillText(c.name, ox + CWd / 2 + 9, oy + CHt / 2 + 1);
         const u0 = ox / at.width, u1 = (ox + CWd) / at.width, v0 = oy / at.height, v1 = (oy + CHt) / at.height, y = c.y + w.AP * 0.9;
         for (const [kx, ky, u, v] of [[-1, -1, u0, v1], [1, -1, u1, v1], [1, 1, u1, v0], [-1, -1, u0, v1], [1, 1, u1, v0], [-1, 1, u0, v0]]) sv.push(c.x, y, c.z, kx, ky, u, v); });
