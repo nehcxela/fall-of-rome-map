@@ -1310,20 +1310,28 @@ Promise.resolve(window.__MD).then(d => {
     const MAPT = [0, 1, 2, 3, 4, 8, 9, 10, 11, 5, 12, 6, 7, 13, 14], CB = MAPT.map(i => hx(TY[i].col || MD[TY[i].k].c));
     const tri = v => { let u = ((v + 24) % 96 + 96) % 96; if (u > 48) u = 96 - u; return u - 24; };
     const FA = [[1.0, 0.26, 'grass'], [0.8, 0.24, 'plains'], [1.2, 0.26, 'desert'], [0.9, 0.26, 'tundra']];
+    // oasis vegetation: a lush ring around the pond (grass tint) with scattered round bushes and a few taller date-palm clumps
+    const oasisVeg = (x, z) => {
+      const d = pondD(x, z), ring = sstep(8.6, 10.5, d) * (1 - sstep(13, 20, d)), m = ring * sstep(0.3, 0.5, fbm(x / 3.5 + 5, z / 3.5, 21));
+      const b = crowns(x * 2.4 + 13, z * 2.4 + 7), p = crowns(x * 0.9 + 31, z * 0.9 + 3) * sstep(0.55, 0.8, fbm(x / 5, z / 5, 22)) * ring;
+      const h = m * (1.0 + 1.6 * b) + p * 3.2 * sstep(0.25, 0.7, b + 0.2);
+      return [h, ring, Math.max(m * sstep(0.1, 0.5, b), p * 0.9), fbm(x / 2, z / 2, 23)];
+    };
     const ground = (t, wx, wz, lx, lz) => {
       if (t < 4 || t === 4) { const a = FA[t === 4 ? 0 : t], o = MD[a[2]], x = tri(wx), z = tri(wz); return (t === 4 ? 0.5 : 1) * (a[0] * (smp(o.m, x, z) - 0.5) + a[1] * smp(o.d, x, z)); }
       if (t >= 5 && t <= 8) return TY[t + 3].h(lx, lz);
       if (t === 9) { const d = dome(qq(lx, lz)); return 21 * d + 5 * (smp(MD.forest_hills.m, lx, lz) - 0.5) * d; }
       if (t === 10) return TY[12].h(lx, lz);
       if (t === 11) { const o = MD.marsh, x = tri(wx), z = tri(wz); return -0.9 + 0.6 * (smp(o.m, x, z) - 0.5) + 0.22 * smp(o.d, x, z) - 1.3 * pool(wx, wz); }
-      if (t === 12) return TY[7].h(lx, lz);
+      if (t === 12) return TY[7].h(lx, lz) + oasisVeg(lx, lz)[0];
       return (t === 13 ? -3 : -4.5) + 0.3 * (fbm(wx / 8, wz / 8, t === 13 ? 11 : 12) - 0.5);
     };
     const canopyH = (wx, wz) => 3 + 3.6 * crowns(wx, wz) + 0.6 * (smp(MD.forest.m, tri(wx), tri(wz)) - 0.5);
     const colT = (t, wx, wz, lx, lz, y, ny) => {
       if (t === 10) return TY[12].tint(lx, lz, y, ny);
       if (t === 11) return TY[6].tint(wx, wz);
-      if (t === 12) { const k = 1 - sstep(7.5, 9.5, pondD(lx, lz)), c = mixc(CB[12], [0.15, 0.45, 0.64], k); return [c[0], c[1], c[2], 0]; }
+      if (t === 12) { const k = 1 - sstep(7.5, 9.5, pondD(lx, lz)), v = oasisVeg(lx, lz); let c = mixc(CB[12], [0.15, 0.45, 0.64], k);
+        c = mixc(c, [0.36, 0.5, 0.22], v[1] * 0.8); c = mixc(c, [0.16 + 0.1 * v[3], 0.36 + 0.1 * v[3], 0.14], v[2]); return [c[0], c[1], c[2], 0]; }
       const c = CB[t]; return [c[0], c[1], c[2], 0];
     };
 
