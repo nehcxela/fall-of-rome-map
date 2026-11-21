@@ -1047,9 +1047,33 @@ Promise.resolve(window.__MD).then(d => {
     const out = document.createElement('canvas'); out.width = TW; out.height = TH; const o2 = out.getContext('2d');
     const lay = {}; for (const id of ['rivers', 'roads']) { const im = new Image(); im.onload = () => { lay[id] = im; if (G && G.w === world) { world.paint(); upload(); redraw(); } }; im.src = window.__IMG[id]; }
     const world = {};
+    // rivers and roads are drawn from the map data as winding, painted ribbons (rivers follow hex sides, roads link hex centres), with bridges where they cross
+    let RG = null;
+    const jt = (x, y, sd) => { const h = Math.sin(x * 12.9898 + y * 78.233 + sd * 37.719) * 43758.5453; return h - Math.floor(h) - 0.5; };
+    const geo = () => {
+      if (RG) return RG;
+      const P = k => [byKey[k][1], byKey[k][2]], k0 = D.hexes[0][0], nb0 = nbKeys(k0).find(k => byKey[k]), ap = nb0 ? Math.hypot(P(k0)[0] - P(nb0)[0], P(k0)[1] - P(nb0)[1]) / 2 : R * 0.866;
+      const ops = (pts) => pts; const cor = new Map(), rv = [], rd = [], br = [];
+      for (const [p, q] of D.riv) { if (!byKey[p] || !byKey[q]) continue; const A = P(p), B = P(q), mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2, dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz), px = -dz / l * ap / 1.732, pz = dx / l * ap / 1.732;
+        for (const sg of [1, -1]) { const X = mx + sg * px, Z = mz + sg * pz, key = Math.round(X * 2) + ',' + Math.round(Z * 2); let c = cor.get(key); if (!c) { c = { x: X + jt(X, Z, 1) * ap * 0.36, z: Z + jt(X, Z, 2) * ap * 0.36, m: [] }; cor.set(key, c); } c.m.push([mx + jt(mx, mz, 3) * ap * 0.12, mz + jt(mx, mz, 4) * ap * 0.12]); } }
+      for (const c of cor.values()) { const m = c.m; if (m.length === 2) rv.push(['q', m[0], [c.x, c.z], m[1]]); else for (const e of m) rv.push(['l', e, [c.x, c.z]]); }
+      const RS = new Set(D.roads.concat(Object.keys(D.cities))), seen = new Set();
+      for (const k of RS) { if (!byKey[k]) continue; const C = P(k), cc = [C[0] + jt(C[0], C[1], 5) * ap * 0.3, C[1] + jt(C[0], C[1], 6) * ap * 0.3], mids = [];
+        for (const n of nbKeys(k)) { if (!RS.has(n) || !byKey[n]) continue; const N = P(n), m = [(C[0] + N[0]) / 2, (C[1] + N[1]) / 2]; mids.push(m);
+          const pk = [k, n].sort().join('|'); if (!seen.has(pk)) { seen.add(pk); if (RIVSET2.has(pk)) br.push([m[0], m[1], Math.atan2(N[1] - C[1], N[0] - C[0])]); } }
+        if (mids.length === 2) rd.push(['q', mids[0], cc, mids[1]]); else for (const m of mids) rd.push(['l', m, cc]); }
+      return (RG = { rv, rd, br, ap });
+    };
+    const RIVSET2 = new Set(D.riv.map(([x, y]) => [x, y].sort().join('|')));
     world.paint = () => {
       o2.clearRect(0, 0, TW, TH);
-      for (const id of ['rivers', 'roads']) { const c = document.getElementById('L-' + id); if (lay[id] && (!c || c.checked)) o2.drawImage(lay[id], -x0 * sx, -z0 * sz, 3848 * sx, 2308 * sz); }
+      const on = id => { const c = document.getElementById('L-' + id); return !c || c.checked; }, g = geo(), X = v => (v[0] - x0) * sx, Y = v => (v[1] - z0) * sz;
+      const path = (list) => { o2.beginPath(); for (const e of list) { o2.moveTo(X(e[1]), Y(e[1])); if (e[0] === 'q') o2.quadraticCurveTo(X(e[2]), Y(e[2]), X(e[3]), Y(e[3])); else o2.lineTo(X(e[2]), Y(e[2])); } };
+      const stroke = (list, w, col) => { path(list); o2.lineWidth = w; o2.strokeStyle = col; o2.stroke(); };
+      o2.lineCap = 'round'; o2.lineJoin = 'round';
+      if (on('rivers')) { const w = 0.3 * g.ap * sx; stroke(g.rv, w * 2.1, 'rgba(92,80,52,0.14)'); stroke(g.rv, w * 1.6, 'rgba(92,80,52,0.26)'); stroke(g.rv, w * 1.25, 'rgba(66,60,42,0.5)'); stroke(g.rv, w, 'rgba(76,106,118,0.97)'); stroke(g.rv, w * 0.55, 'rgba(112,146,156,0.55)'); }
+      if (on('roads')) { const w = 0.19 * g.ap * sx; stroke(g.rd, w * 1.9, 'rgba(60,44,28,0.25)'); stroke(g.rd, w * 1.3, 'rgba(58,42,26,0.85)'); stroke(g.rd, w, 'rgb(138,112,78)'); stroke(g.rd, w * 0.55, 'rgba(168,140,100,0.7)');
+        if (on('rivers')) for (const b of g.br) { o2.save(); o2.translate(X(b), Y(b)); o2.rotate(b[2]); const L = 0.66 * g.ap * sx, Wd = 0.27 * g.ap * sx; o2.fillStyle = 'rgb(196,170,126)'; o2.strokeStyle = 'rgb(88,64,40)'; o2.lineWidth = Wd * 0.14; o2.beginPath(); o2.rect(-L / 2, -Wd / 2, L, Wd); o2.fill(); o2.stroke(); o2.strokeStyle = 'rgba(236,216,176,0.9)'; o2.lineWidth = Wd * 0.1; o2.beginPath(); o2.moveTo(-L / 2, -Wd * 0.28); o2.lineTo(L / 2, -Wd * 0.28); o2.moveTo(-L / 2, Wd * 0.28); o2.lineTo(L / 2, Wd * 0.28); o2.stroke(); o2.restore(); } }
     };
     world.paint();
     return Object.assign(world, { chunks, merge, tc: out, tv: new Float32Array(0), x0, x1, z0, z1, span: x1 - x0, zspan: z1 - z0 });
