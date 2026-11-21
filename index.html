@@ -1008,13 +1008,15 @@ Promise.resolve(window.__MD).then(d => {
     };
     const SAND = [0.83, 0.77, 0.58], FOAM = [0.93, 0.91, 0.82], sst = TM.sstep;
     const merge = (c, li) => {
-      const st = SM[li] * K, i0 = Math.floor((c.bx0 - x0) / st) - 1, i1 = Math.ceil((c.bx1 - x0) / st) + 1, j0 = Math.floor((c.bz0 - z0) / st) - 1, j1 = Math.ceil((c.bz1 - z0) / st) + 1, nx = i1 - i0 + 1, nz = j1 - j0 + 1, W = nx + 2, N2 = W * (nz + 2);
+      const MK = world.mask(); const st = SM[li] * K, i0 = Math.floor((c.bx0 - x0) / st) - 1, i1 = Math.ceil((c.bx1 - x0) / st) + 1, j0 = Math.floor((c.bz0 - z0) / st) - 1, j1 = Math.ceil((c.bz1 - z0) / st) + 1, nx = i1 - i0 + 1, nz = j1 - j0 + 1, W = nx + 2, N2 = W * (nz + 2);
       const H = new Float32Array(N2), V = new Uint8Array(N2), CM = new Float32Array(N2), WW = new Float32Array(N2), OW = new Int32Array(N2).fill(-1);
       for (let gj = -1; gj <= nz; gj++) for (let gi = -1; gi <= nx; gi++) {
         const q = (gj + 1) * W + gi + 1, px = x0 + (i0 + gi) * st, pz = z0 + (j0 + gj) * st, m = near(px, pz); if (!m) continue;
         const wx = px / K, wz = pz / K; let h = 0, fw = 0, ww = 0;
         for (let k = 0; k < m; k++) { const w = cw[k]; if (!w) continue; const j = cand[k], t = hk[j]; h += w * TM.ground(t, wx, wz, (px - hx[j]) / K, (pz - hz[j]) / K); if (t === 4 || t === 9) fw += w; if (t >= 13) ww += w; }
-        const cm = sst(0.42, 0.58, fw); if (cm > 0) h += cm * TM.canopyH(wx, wz);
+        const mk = MK.at(px, pz); let cm = sst(0.42, 0.58, fw) * (1 - sst(0.12, 0.55, Math.max(mk[0], mk[1])));
+        if (cm > 0) h += cm * TM.canopyH(wx, wz);
+        h -= 2.6 * mk[0] * (1 - sst(0.4, 0.9, ww));
         H[q] = h; V[q] = 1; CM[q] = cm; WW[q] = ww; OW[q] = hc[nearI];
       }
       const v = new Float32Array(nx * nz * 9), ix = [], sk = [], skI = []; const stm = SM[li];
@@ -1074,6 +1076,20 @@ Promise.resolve(window.__MD).then(d => {
       if (on('rivers')) { const w = 0.3 * g.ap * sx; stroke(g.rv, w * 2.1, 'rgba(92,80,52,0.14)'); stroke(g.rv, w * 1.6, 'rgba(92,80,52,0.26)'); stroke(g.rv, w * 1.25, 'rgba(66,60,42,0.5)'); stroke(g.rv, w, 'rgba(76,106,118,0.97)'); stroke(g.rv, w * 0.55, 'rgba(112,146,156,0.55)'); }
       if (on('roads')) { const w = 0.19 * g.ap * sx; stroke(g.rd, w * 1.9, 'rgba(60,44,28,0.25)'); stroke(g.rd, w * 1.3, 'rgba(58,42,26,0.85)'); stroke(g.rd, w, 'rgb(138,112,78)'); stroke(g.rd, w * 0.55, 'rgba(168,140,100,0.7)');
         if (on('rivers')) for (const b of g.br) { o2.save(); o2.translate(X(b), Y(b)); o2.rotate(b[2]); const L = 0.66 * g.ap * sx, Wd = 0.27 * g.ap * sx; o2.fillStyle = 'rgb(196,170,126)'; o2.strokeStyle = 'rgb(88,64,40)'; o2.lineWidth = Wd * 0.14; o2.beginPath(); o2.rect(-L / 2, -Wd / 2, L, Wd); o2.fill(); o2.stroke(); o2.strokeStyle = 'rgba(236,216,176,0.9)'; o2.lineWidth = Wd * 0.1; o2.beginPath(); o2.moveTo(-L / 2, -Wd * 0.28); o2.lineTo(L / 2, -Wd * 0.28); o2.moveTo(-L / 2, Wd * 0.28); o2.lineTo(L / 2, Wd * 0.28); o2.stroke(); o2.restore(); } }
+    };
+    // soft masks of the river and road courses (red = river, green = road), used to dip the river beds and clear the trees off roads
+    let MKD = null;
+    world.mask = () => {
+      if (MKD) return MKD;
+      const MW = 4096, MH = Math.round(MW * (z1 - z0) / (x1 - x0)), cv = document.createElement('canvas'); cv.width = MW; cv.height = MH; const c = cv.getContext('2d', { willReadFrequently: true }); c.fillStyle = '#000'; c.fillRect(0, 0, MW, MH);
+      const g = geo(), mx = MW / (x1 - x0), mz = MH / (z1 - z0), X = v => (v[0] - x0) * mx, Y = v => (v[1] - z0) * mz; c.lineCap = 'round'; c.lineJoin = 'round'; c.globalCompositeOperation = 'lighter';
+      const run = (list, w, col) => { c.beginPath(); for (const e of list) { c.moveTo(X(e[1]), Y(e[1])); if (e[0] === 'q') c.quadraticCurveTo(X(e[2]), Y(e[2]), X(e[3]), Y(e[3])); else c.lineTo(X(e[2]), Y(e[2])); } c.lineWidth = w; c.strokeStyle = col; c.stroke(); };
+      const w = g.ap * mx;
+      for (const [k, col] of [[0.8, '255,0,0'], [0.55, '255,0,0'], [0.36, '255,0,0'], [0.2, '255,0,0']]) run(g.rv, k * w, `rgba(${col},0.3)`);
+      for (const [k, col] of [[0.8, '0,255,0'], [0.55, '0,255,0'], [0.36, '0,255,0'], [0.2, '0,255,0']]) run(g.rd, k * w, `rgba(${col},0.3)`);
+      const dat = c.getImageData(0, 0, MW, MH).data;
+      return (MKD = { MW, MH, mx, mz, at: (px, pz) => { const u = Math.max(0, Math.min(MW - 1.001, (px - x0) * mx)), v = Math.max(0, Math.min(MH - 1.001, (pz - z0) * mz)), i = Math.floor(u), j = Math.floor(v), fx = u - i, fy = v - j, o = (j * MW + i) * 4, o2 = o + MW * 4;
+        const f = ch => ((dat[o + ch] * (1 - fx) + dat[o + 4 + ch] * fx) * (1 - fy) + (dat[o2 + ch] * (1 - fx) + dat[o2 + 4 + ch] * fx) * fy) / 255; return [Math.min(1, f(0)), Math.min(1, f(1))]; } });
     };
     world.paint();
     return Object.assign(world, { chunks, merge, tc: out, tv: new Float32Array(0), x0, x1, z0, z1, span: x1 - x0, zspan: z1 - z0 });
