@@ -79,6 +79,7 @@ select {
 
 #view { position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: grab; background: var(--bg); }
 
+#view.is3d #card { z-index: 6; }
 #v3 { position: absolute; inset: 0; display: none; background: var(--bg); touch-action: none; cursor: grab; }
 #v3.on { display: block; }
 #v3 canvas { display: block; width: 100%; height: 100%; }
@@ -462,7 +463,7 @@ view.addEventListener('pointermove', e => {
   const r = view.getBoundingClientRect();
   if (ptrs.size === 1) {
     moved = Math.max(moved, Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]));
-    tx += dx; ty += dy; setT();
+    if (!view.classList.contains('is3d')) { tx += dx; ty += dy; setT(); }
   } else if (ptrs.size === 2 && pinch) {
     const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     tx += m[0] - pinch.m[0]; ty += m[1] - pinch.m[1];
@@ -481,7 +482,7 @@ window.addEventListener('resize', () => fit());
 // ---- hex lookup
 let D = null, grid = new Map(), byKey = {}, cityAt = {}; const TAC = { choke: new Set(), cross: {} };
 const cellSz = 60;
-function toMap(e) { const r = view.getBoundingClientRect(); return [(e.clientX - r.left - tx) / s, (e.clientY - r.top - ty) / s]; }
+function toMap(e) { if (view.classList.contains('is3d')) return (window.__pick3 && window.__pick3(e.clientX, e.clientY)) || [-1e9, -1e9]; const r = view.getBoundingClientRect(); return [(e.clientX - r.left - tx) / s, (e.clientY - r.top - ty) / s]; }
 function nearest(x, y) {
   if (!D) return null; let best = null, bd = 1e9;
   const gx = Math.floor(x / cellSz), gy = Math.floor(y / cellSz);
@@ -1420,6 +1421,11 @@ Promise.resolve(window.__MD).then(d => {
     new ResizeObserver(resize).observe(box);
   }
   const FOV = 35 * Math.PI / 180;
+  window.__pick3 = (cx, cy) => { if (!G || !W || !H) return null; const r = cv.getBoundingClientRect(), d = dist(), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), t = Math.tan(FOV / 2);
+    const eye = [cam.tx + d * Math.sin(cam.yaw) * cp, d * sp, cam.tz + d * Math.cos(cam.yaw) * cp], f = [cam.tx - eye[0], -eye[1], cam.tz - eye[2]], fl = Math.hypot(...f); f[0] /= fl; f[1] /= fl; f[2] /= fl;
+    let rt = [-f[2], 0, f[0]]; const rl = Math.hypot(rt[0], rt[2]); rt = [rt[0] / rl, 0, rt[2] / rl]; const up = [rt[1] * f[2] - rt[2] * f[1], rt[2] * f[0] - rt[0] * f[2], rt[0] * f[1] - rt[1] * f[0]];
+    const nx = 2 * (cx - r.left) / r.width - 1, ny = 1 - 2 * (cy - r.top) / r.height, k = [t * (W / H) * nx, t * ny], dir = [f[0] + rt[0] * k[0] + up[0] * k[1], f[1] + rt[1] * k[0] + up[1] * k[1], f[2] + rt[2] * k[0] + up[2] * k[1]];
+    if (dir[1] > -1e-4) return null; const s = (7 - eye[1]) / dir[1]; return [eye[0] + dir[0] * s, eye[2] + dir[2] * s]; };
   const dist = () => { const t = Math.tan(FOV / 2), asp = W / H; return Math.max(G.w.span / (2 * t * asp), G.w.zspan * 0.85 / (2 * t)) * 1.08 / cam.zoom; };
   function zoomBy(f) { cam.zoom = Math.max(0.5, Math.min(48, cam.zoom * f)); redraw(); }
   function resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); W = box.clientWidth; H = box.clientHeight; if (!W || !H) return; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px'; redraw(); }
