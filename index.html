@@ -1421,6 +1421,10 @@ Promise.resolve(window.__MD).then(d => {
     new ResizeObserver(resize).observe(box);
   }
   const FOV = 35 * Math.PI / 180;
+  const NS3 = 'http://www.w3.org/2000/svg', hs = document.createElementNS(NS3, 'svg'); hs.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden'; const hp1 = document.createElementNS(NS3, 'polygon'), hp2 = document.createElementNS(NS3, 'polygon');
+  hp1.setAttribute('fill', 'none'); hp1.setAttribute('stroke', '#fff'); hp1.setAttribute('stroke-width', '5'); hp1.setAttribute('stroke-linejoin', 'round'); hp2.setAttribute('fill', 'rgba(111,36,92,.12)'); hp2.setAttribute('stroke', '#6f245c'); hp2.setAttribute('stroke-width', '2.5'); hp2.setAttribute('stroke-linejoin', 'round'); hs.append(hp1, hp2);
+  window.__upd3 = () => { if (!hs.parentNode && box) box.appendChild(hs); const h = typeof cur !== 'undefined' ? cur : null; if (!h || !G || !G.M || !W || !H || !view.classList.contains('is3d')) { hs.style.display = 'none'; return; } const M = G.M, pts = []; for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i + 30), x = h[1] + D.R * Math.cos(a), z = h[2] + D.R * Math.sin(a), w = M[3] * x + M[7] * 9 + M[11] * z + M[15]; if (w <= 0) { hs.style.display = 'none'; return; } pts.push(((M[0] * x + M[4] * 9 + M[8] * z + M[12]) / w * 0.5 + 0.5) * W + ',' + (0.5 - (M[1] * x + M[5] * 9 + M[9] * z + M[13]) / w * 0.5) * H); } hs.style.display = ''; hp1.setAttribute('points', pts.join(' ')); hp2.setAttribute('points', pts.join(' ')); };
+  { const rc0 = renderCard; renderCard = function () { rc0.apply(this, arguments); window.__upd3(); }; }
   window.__pick3 = (cx, cy) => { if (!G || !W || !H) return null; const r = cv.getBoundingClientRect(), d = dist(), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), t = Math.tan(FOV / 2);
     const eye = [cam.tx + d * Math.sin(cam.yaw) * cp, d * sp, cam.tz + d * Math.cos(cam.yaw) * cp], f = [cam.tx - eye[0], -eye[1], cam.tz - eye[2]], fl = Math.hypot(...f); f[0] /= fl; f[1] /= fl; f[2] /= fl;
     let rt = [-f[2], 0, f[0]]; const rl = Math.hypot(rt[0], rt[2]); rt = [rt[0] / rl, 0, rt[2] / rl]; const up = [rt[1] * f[2] - rt[2] * f[1], rt[2] * f[0] - rt[0] * f[2], rt[0] * f[1] - rt[1] * f[0]];
@@ -1442,7 +1446,7 @@ Promise.resolve(window.__MD).then(d => {
     const d = dist(), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
     const eye = [cam.tx + d * Math.sin(cam.yaw) * cp, d * sp, cam.tz + d * Math.cos(cam.yaw) * cp];
     const M = mul(persp(FOV, W / H, d * 0.03, d * 6), lookAt(eye, [cam.tx, 0, cam.tz]));
-    gl.viewport(0, 0, cv.width, cv.height);
+    G.M = M; gl.viewport(0, 0, cv.width, cv.height);
     const bg = getComputedStyle(view).backgroundColor.match(/[\d.]+/g).map(Number); gl.clearColor(bg[0] / 255, bg[1] / 255, bg[2] / 255, 1);
     gl.enable(gl.DEPTH_TEST); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(G.tp); gl.uniformMatrix4fv(gl.getUniformLocation(G.tp, 'M'), false, M);
@@ -1460,7 +1464,7 @@ Promise.resolve(window.__MD).then(d => {
     }
     gl.bindVertexArray(null);
     for (const c of G.w.chunks) if (c.vis && c.vao) { gl.bindVertexArray(c.vao); gl.drawElements(gl.TRIANGLES, c.n, gl.UNSIGNED_INT, 0); }
-    let res = 0; for (const c of G.w.chunks) if (c.vao) res++; if (res > 40) for (const c of G.w.chunks) if (!c.vis && c.vao) chunkFree(c);
+    window.__upd3 && window.__upd3(); let res = 0; for (const c of G.w.chunks) if (c.vao) res++; if (res > 40) for (const c of G.w.chunks) if (!c.vis && c.vao) chunkFree(c);
     if (more) redraw();
     gl.useProgram(G.pp); gl.uniformMatrix4fv(gl.getUniformLocation(G.pp, 'M'), false, M);
     for (const mm of [G.models.land, G.models.obj]) if (mm.n) { gl.bindVertexArray(mm.vao); if (mm.idx) gl.drawElements(gl.TRIANGLES, mm.n, gl.UNSIGNED_INT, 0); else gl.drawArrays(gl.TRIANGLES, 0, mm.n); }
