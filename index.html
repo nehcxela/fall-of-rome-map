@@ -1364,7 +1364,7 @@ Promise.resolve(window.__MD).then(d => {
   function upload() { gl.bindTexture(gl.TEXTURE_2D, G.tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, G.w.tc); gl.generateMipmap(gl.TEXTURE_2D); }
   function setup() {
     box = document.createElement('div'); box.id = 'v3'; cv = document.createElement('canvas'); box.appendChild(cv);
-    box.insertAdjacentHTML('beforeend', '<div class="hint">Drag to rotate and tilt · scroll to zoom · right-drag or Shift-drag to pan · double-click to reset</div>');
+    box.insertAdjacentHTML('beforeend', '<div class="hint">Drag to pan · right-drag to rotate and tilt · scroll or pinch to zoom · double-click to reset</div>');
     box.insertAdjacentHTML('beforeend', '<button class="tsel btn" id="tmb" aria-pressed="false">Terrain model</button><button class="tsel btn" id="omb" style="bottom:48px">Object models</button>');
     view.appendChild(box);
     gl = cv.getContext('webgl2', { antialias: true });
@@ -1400,7 +1400,7 @@ Promise.resolve(window.__MD).then(d => {
     cam.home = { yaw: 0, pitch: 0.95, zoom: 1, tx: cam.tx, tz: cam.tz };
     const pts = new Map(); let mode = null, lx = 0, ly = 0, pinch = 0;
     cv.addEventListener('contextmenu', e => e.preventDefault());
-    cv.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('button, select, input, a')) return; cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, e); lx = e.clientX; ly = e.clientY; mode = (e.button === 2 || e.shiftKey) ? 'pan' : 'rot'; if (pts.size === 2) { const [a, c] = [...pts.values()]; pinch = Math.hypot(a.clientX - c.clientX, a.clientY - c.clientY); } });
+    cv.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('button, select, input, a')) return; cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, e); lx = e.clientX; ly = e.clientY; mode = (e.button === 2 || e.ctrlKey) ? 'rot' : 'pan'; if (pts.size === 2) { const [a, c] = [...pts.values()]; pinch = Math.hypot(a.clientX - c.clientX, a.clientY - c.clientY); } });
     cv.addEventListener('pointermove', e => {
       if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, e);
       if (pts.size === 2) { const [a, c] = [...pts.values()]; const d = Math.hypot(a.clientX - c.clientX, a.clientY - c.clientY); if (pinch) zoomBy(d / pinch); pinch = d; return; }
