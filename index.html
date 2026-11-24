@@ -1573,10 +1573,10 @@ Promise.resolve(window.__MD).then(d => {
         extra: (f) => { const n = 28, base = f.v.length / STR; pv(f, POND[0], -1.5, POND[1], 0, 1, 0, 0, 0, [0.2, 0.55, 0.7], 0);
           for (let k = 0; k <= n; k++) { const a = k / n * 6.2832; pv(f, POND[0] + 6.1 * Math.cos(a), -1.5, POND[1] + 6.1 * Math.sin(a), 0, 1, 0, 0, 0, [0.12, 0.38, 0.58], 0); }
           for (let k = 0; k < n; k++) f.i.push(base, base + 1 + k, base + 2 + k); } },
-      { n: 'Hills (grass)', k: 'grass_hills', h: mold('grass_hills', (M, D, x, z) => { const d = mesa(qq(x, z)); return d * 20 + 7 * (M - 0.5) * d * d + 5 * (fbm(x / 16, z / 16, 8) - 0.5) * d + 0.5 * (D - 0.5) * d + gully(x, z, d); }) },
-      { n: 'Hills (plains)', k: 'plains_hills', h: mold('plains_hills', (M, D, x, z) => { const d = mesa(qq(x, z)); return d * 20 + 7 * (M - 0.5) * d * d + 5 * (fbm(x / 16, z / 16, 8) - 0.5) * d + 0.5 * (D - 0.5) * d + gully(x, z, d); }) },
-      { n: 'Hills (desert)', k: 'desert_hills', h: mold('desert_hills', (M, D, x, z) => { const d = mesa(qq(x, z)); return d * 20 + 7 * (M - 0.5) * d * d + 5 * (fbm(x / 16, z / 16, 8) - 0.5) * d + 0.5 * (D - 0.5) * d + gully(x, z, d); }) },
-      { n: 'Hills (tundra)', k: 'tundra_hills', h: mold('tundra_hills', (M, D, x, z) => { const d = mesa(qq(x, z)); return d * 20 + 7 * (M - 0.5) * d * d + 5 * (fbm(x / 16, z / 16, 8) - 0.5) * d + 0.5 * (D - 0.5) * d + gully(x, z, d); }) },
+      { n: 'Hills (grass)', k: 'grass_hills', h: mold('grass_hills', (M, D, x, z) => { const d = mesa(qq(x, z)); return d * 20 + 3.5 * (M - 0.5) * d * d + 3.5 * (fbm(x / 22, z / 22, 8) - 0.5) * d + 0.15 * (D - 0.5) * d + 0.45 * gully(x, z, d); }) },
+      { n: 'Hills (plains)', k: 'plains_hills', h: mold('plains_hills', (M, D, x, z) => { const d = mesa(qq(x, z)); return d * 20 + 3.5 * (M - 0.5) * d * d + 3.5 * (fbm(x / 22, z / 22, 8) - 0.5) * d + 0.15 * (D - 0.5) * d + 0.45 * gully(x, z, d); }) },
+      { n: 'Hills (desert)', k: 'desert_hills', h: mold('desert_hills', (M, D, x, z) => { const d = mesa(qq(x, z)); return d * 20 + 3.5 * (M - 0.5) * d * d + 3.5 * (fbm(x / 22, z / 22, 8) - 0.5) * d + 0.15 * (D - 0.5) * d + 0.45 * gully(x, z, d); }) },
+      { n: 'Hills (tundra)', k: 'tundra_hills', h: mold('tundra_hills', (M, D, x, z) => { const d = mesa(qq(x, z)); return d * 20 + 3.5 * (M - 0.5) * d * d + 3.5 * (fbm(x / 22, z / 22, 8) - 0.5) * d + 0.15 * (D - 0.5) * d + 0.45 * gully(x, z, d); }) },
       { n: 'Mountains', k: 'mountain', tint: (x, z, y, ny) => { const D = smp(MD.mountain.d, x, z), st = fbm(x / 2.2, z / 5.5, 14);
           let c = mixc([0.3, 0.32, 0.36], [0.66, 0.69, 0.73], sstep(-1.2, 1.2, D * 0.8 + (st - 0.5) * 2.2));
           c = mixc(c, [0.3, 0.42, 0.22], (1 - sstep(0.5, 3.5, y)) * 0.8);
