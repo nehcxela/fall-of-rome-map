@@ -79,7 +79,11 @@ select {
 
 #view { position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: grab; background: var(--bg); }
 
-#view.is3d #card { z-index: 6; }
+#view.is3d #card { display: none; }
+#v3 .hint.info { color: var(--fg); font-size: .85rem; width: min(330px, calc(100% - 24px)); padding: 14px 16px; border-radius: 12px; box-shadow: var(--shadow); max-height: 70%; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+#v3 .hint.info h2 { font-family: var(--display); font-weight: 400; font-size: 1.25rem; margin: 0; line-height: 1.15; }
+#v3 .hint.info .legend { display: none; }
+#v3 .hn { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.45; }
 #v3 { position: absolute; inset: 0; display: none; background: var(--bg); touch-action: none; cursor: grab; }
 #v3.on { display: block; }
 #v3 canvas { display: block; width: 100%; height: 100%; }
@@ -1424,7 +1428,9 @@ Promise.resolve(window.__MD).then(d => {
   const NS3 = 'http://www.w3.org/2000/svg', hs = document.createElementNS(NS3, 'svg'); hs.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden'; const hp1 = document.createElementNS(NS3, 'polygon'), hp2 = document.createElementNS(NS3, 'polygon');
   hp1.setAttribute('fill', 'none'); hp1.setAttribute('stroke', '#fff'); hp1.setAttribute('stroke-width', '5'); hp1.setAttribute('stroke-linejoin', 'round'); hp2.setAttribute('fill', 'rgba(111,36,92,.12)'); hp2.setAttribute('stroke', '#6f245c'); hp2.setAttribute('stroke-width', '2.5'); hp2.setAttribute('stroke-linejoin', 'round'); hs.append(hp1, hp2);
   window.__upd3 = () => { if (!hs.parentNode && box) box.appendChild(hs); const h = typeof cur !== 'undefined' ? cur : null; if (!h || !G || !G.M || !W || !H || !view.classList.contains('is3d')) { hs.style.display = 'none'; return; } const M = G.M, pts = []; for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i + 30), x = h[1] + D.R * Math.cos(a), z = h[2] + D.R * Math.sin(a), w = M[3] * x + M[7] * 9 + M[11] * z + M[15]; if (w <= 0) { hs.style.display = 'none'; return; } pts.push(((M[0] * x + M[4] * 9 + M[8] * z + M[12]) / w * 0.5 + 0.5) * W + ',' + (0.5 - (M[1] * x + M[5] * 9 + M[9] * z + M[13]) / w * 0.5) * H); } hs.style.display = ''; hp1.setAttribute('points', pts.join(' ')); hp2.setAttribute('points', pts.join(' ')); };
-  { const rc0 = renderCard; renderCard = function () { rc0.apply(this, arguments); window.__upd3(); }; }
+  const DEF3 = 'Drag to pan · right-drag to rotate and tilt · scroll or pinch to zoom · double-click to reset';
+  window.__hint3 = () => { const el = box && box.querySelector('.hint'); if (!el) return; const show = typeof cur !== 'undefined' && (cur || measureOn) && view.classList.contains('is3d'); if (show) { el.classList.add('info'); el.innerHTML = card.innerHTML.replace(/class="hint"/g, 'class="hn"'); } else { el.classList.remove('info'); el.textContent = DEF3; } };
+  { const rc0 = renderCard; renderCard = function () { rc0.apply(this, arguments); window.__upd3(); window.__hint3(); }; const mc0 = measureCard; measureCard = function () { mc0.apply(this, arguments); window.__hint3(); }; }
   window.__pick3 = (cx, cy) => { if (!G || !W || !H) return null; const r = cv.getBoundingClientRect(), d = dist(), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), t = Math.tan(FOV / 2);
     const eye = [cam.tx + d * Math.sin(cam.yaw) * cp, d * sp, cam.tz + d * Math.cos(cam.yaw) * cp], f = [cam.tx - eye[0], -eye[1], cam.tz - eye[2]], fl = Math.hypot(...f); f[0] /= fl; f[1] /= fl; f[2] /= fl;
     let rt = [-f[2], 0, f[0]]; const rl = Math.hypot(rt[0], rt[2]); rt = [rt[0] / rl, 0, rt[2] / rl]; const up = [rt[1] * f[2] - rt[2] * f[1], rt[2] * f[0] - rt[0] * f[2], rt[0] * f[1] - rt[1] * f[0]];
