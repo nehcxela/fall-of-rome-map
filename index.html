@@ -1315,7 +1315,7 @@ Promise.resolve(window.__MD).then(d => {
     const RIVSET2 = new Set(D.riv.map(([x, y]) => [x, y].sort().join('|')));
     world.paint = () => {
       o2.clearRect(0, 0, TW, TH);
-      const on = id => { const c = document.getElementById('L-' + id); return !c || c.checked; }, g = geo(), X = v => (v[0] - x0) * sx, Y = v => (v[1] - z0) * sz;
+      const on = id => true, g = geo(), X = v => (v[0] - x0) * sx, Y = v => (v[1] - z0) * sz;
       const path = (list) => { o2.beginPath(); for (const e of list) { o2.moveTo(X(e[1]), Y(e[1])); if (e[0] === 'q') o2.quadraticCurveTo(X(e[2]), Y(e[2]), X(e[3]), Y(e[3])); else o2.lineTo(X(e[2]), Y(e[2])); } };
       const stroke = (list, w, col) => { path(list); o2.lineWidth = w; o2.strokeStyle = col; o2.stroke(); };
       o2.lineCap = 'round'; o2.lineJoin = 'round';
@@ -1338,7 +1338,7 @@ Promise.resolve(window.__MD).then(d => {
         const f = ch => ((dat[o + ch] * (1 - fx) + dat[o + 4 + ch] * fx) * (1 - fy) + (dat[o2 + ch] * (1 - fx) + dat[o2 + 4 + ch] * fx) * fy) / 255; return [Math.min(1, f(0)), Math.min(1, f(1))]; } });
     };
     world.paint();
-    return Object.assign(world, { chunks, merge, tc: out, tv: new Float32Array(tvA), objR: RM, objI: IM, objG: GM, gal: GL, cities: CITY, AP, x0, x1, z0, z1, span: x1 - x0, zspan: z1 - z0 });
+    return Object.assign(world, { chunks, merge, tc: out, tv: new Float32Array(tvA), obj: (() => { const v = RM.v.concat(IM.v, GM.v), i = [], o1 = RM.v.length / 9, o2 = o1 + IM.v.length / 9; for (const k of RM.i) i.push(k); for (const k of IM.i) i.push(k + o1); for (const k of GM.i) i.push(k + o2); return { v, i }; })(), gal: GL, cities: CITY, AP, x0, x1, z0, z1, span: x1 - x0, zspan: z1 - z0 });
   }
 
   const VS = `#version 300 es
@@ -1377,7 +1377,7 @@ Promise.resolve(window.__MD).then(d => {
       const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(m.i), gl.STATIC_DRAW); gl.bindVertexArray(null); o.idx = 1; return o; };
     const mkv = arr => { const o = { vao: gl.createVertexArray(), n: arr.length / 9 }; gl.bindVertexArray(o.vao); const bf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bf); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW);
       for (const [nm, off] of [['p', 0], ['n', 12], ['c', 24]]) { const l2 = gl.getAttribLocation(G.pp, nm); if (l2 >= 0) { gl.enableVertexAttribArray(l2); gl.vertexAttribPointer(l2, 3, gl.FLOAT, false, 36, off); } } gl.bindVertexArray(null); return o; };
-    G.models = { cities: mkv(w.tv), res: mki(w.objR), imp: mki(w.objI), gal: mki(w.objG) };
+    G.models = { land: mkv(w.tv), obj: mki(w.obj) };
     // city name signs: one textured quad per city, always facing the camera
     { const cs = w.cities.concat(w.gal), CWd = 256, CHt = 64, cols = 4, rows = Math.ceil(cs.length / cols), at = document.createElement('canvas'); at.width = CWd * cols; at.height = CHt * rows; const a2 = at.getContext('2d'); const sv = [];
       cs.forEach((c, i) => { const ox = (i % cols) * CWd, oy = Math.floor(i / cols) * CHt, col = OWNERS[c.fac] ? OWNERS[c.fac][1] : '#888', rr = parseInt(col.slice(1, 3), 16), gg = parseInt(col.slice(3, 5), 16), bb2 = parseInt(col.slice(5, 7), 16), light = (0.3 * rr + 0.59 * gg + 0.11 * bb2) > 130;
@@ -1418,8 +1418,6 @@ Promise.resolve(window.__MD).then(d => {
     box.querySelector('#omb').addEventListener('click', e => { const g = G.w.gal; if (!g || !g.length) return; const gal = !cam.gal; e.target.textContent = gal ? 'Back to map' : 'Object models'; if (gal) { cam.sv = { yaw: cam.yaw, pitch: cam.pitch, zoom: cam.zoom, tx: cam.tx, tz: cam.tz }; Object.assign(cam, { yaw: 0, pitch: 0.85, zoom: 4.2, tx: g[4].x, tz: g[4].z }); } else Object.assign(cam, cam.sv || cam.home); cam.gal = gal; redraw(); });
     box.querySelector('#tmb').addEventListener('click', e => { const on = !view.classList.contains('tm-on'); view.classList.toggle('tm-on', on); e.target.setAttribute('aria-pressed', on); if (on) TM.show(); });
     new ResizeObserver(resize).observe(box);
-    for (const id of ['cities', 'res', 'imp']) { const c = document.getElementById('L-' + id); if (c) c.addEventListener('change', () => { if (G) redraw(); }); }
-    for (const id of ['rivers', 'roads']) { const c = document.getElementById('L-' + id); if (c) c.addEventListener('change', () => { if (G) { G.w.paint(); upload(); redraw(); } }); }
   }
   const FOV = 35 * Math.PI / 180;
   const dist = () => { const t = Math.tan(FOV / 2), asp = W / H; return Math.max(G.w.span / (2 * t * asp), G.w.zspan * 0.85 / (2 * t)) * 1.08 / cam.zoom; };
@@ -1458,12 +1456,10 @@ Promise.resolve(window.__MD).then(d => {
     for (const c of G.w.chunks) if (c.vis && c.vao) { gl.bindVertexArray(c.vao); gl.drawElements(gl.TRIANGLES, c.n, gl.UNSIGNED_INT, 0); }
     let res = 0; for (const c of G.w.chunks) if (c.vao) res++; if (res > 40) for (const c of G.w.chunks) if (!c.vis && c.vao) chunkFree(c);
     if (more) redraw();
-    const lyOn = id => { const c = document.getElementById('L-' + id); return !c || c.checked; };
     gl.useProgram(G.pp); gl.uniformMatrix4fv(gl.getUniformLocation(G.pp, 'M'), false, M);
-    for (const [id, key] of [['cities', 'cities'], ['res', 'res'], ['imp', 'imp']]) if (lyOn(id)) { const mm = G.models[key]; if (mm.n) { gl.bindVertexArray(mm.vao); if (mm.idx) gl.drawElements(gl.TRIANGLES, mm.n, gl.UNSIGNED_INT, 0); else gl.drawArrays(gl.TRIANGLES, 0, mm.n); } }
-    if (G.models.gal.n) { const mm = G.models.gal; gl.bindVertexArray(mm.vao); gl.drawElements(gl.TRIANGLES, mm.n, gl.UNSIGNED_INT, 0); }
+    for (const mm of [G.models.land, G.models.obj]) if (mm.n) { gl.bindVertexArray(mm.vao); if (mm.idx) gl.drawElements(gl.TRIANGLES, mm.n, gl.UNSIGNED_INT, 0); else gl.drawArrays(gl.TRIANGLES, 0, mm.n); }
     gl.bindVertexArray(null);
-    if (lyOn('cities')) {
+    {
       const fw = [-Math.sin(cam.yaw) * cp, -sp, -Math.cos(cam.yaw) * cp], R = [Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)], U = [R[1] * fw[2] - R[2] * fw[1], R[2] * fw[0] - R[0] * fw[2], R[0] * fw[1] - R[1] * fw[0]];
       const HW = G.w.AP * 0.7, S = Math.max(1, (80 * 2 * tf * d / H) / (2 * HW));
       gl.useProgram(G.sp); gl.uniformMatrix4fv(gl.getUniformLocation(G.sp, 'M'), false, M); gl.uniform3fv(gl.getUniformLocation(G.sp, 'R'), R); gl.uniform3fv(gl.getUniformLocation(G.sp, 'U'), U); gl.uniform1f(gl.getUniformLocation(G.sp, 'S'), S); gl.uniform1f(gl.getUniformLocation(G.sp, 'HW'), HW);
@@ -1725,7 +1721,6 @@ Promise.resolve(window.__MD).then(d => {
     if (want) {
       if (!D) return;
       if (!box) { try { setup(); } catch (e) { alert('The 3D view could not start: ' + e.message); return; } }
-      for (const c of document.querySelectorAll('#layers input[id^="L-"]')) if (!c.checked && /L-(cities|res|imp|rivers|roads|units)$/.test(c.id)) { c.checked = true; c.dispatchEvent(new Event('change')); }
       document.getElementById('layers').style.display = 'none';
       box.classList.add('on'); view.classList.add('is3d'); btn.textContent = '2D'; resize();
     } else { document.getElementById('layers').style.display = ''; btn.textContent = '3D'; box.classList.remove('on'); view.classList.remove('is3d'); }
