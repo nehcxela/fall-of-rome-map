@@ -1175,7 +1175,7 @@ Promise.resolve(window.__MD).then(d => {
     const farm = (x, z, wheat, sd) => { const cs = 0.36 * U, GOLD = [[0.93, 0.72, 0.26], [0.86, 0.62, 0.2], [0.96, 0.8, 0.34], [0.8, 0.58, 0.2]], GRN = [[0.3, 0.5, 0.18], [0.4, 0.6, 0.24], [0.24, 0.42, 0.16], [0.5, 0.58, 0.24]];
       for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) { const cx = x + (i + 0.04 * j) * cs, cz = z + (j + 0.05 * i * i * 0.4) * cs; if (Math.hypot(cx - x, cz - z) > 0.92 * U) continue; const hut = (i === 1 && j === 1) || (i === 2 && j === 1); if (hut) continue; const r = rnd(i + 5, j + 5, sd), pal = (wheat ? r < 0.8 : r < 0.12) ? GOLD : GRN, A = pal[Math.floor(rnd(i, j, sd + 3) * 4) % 4], rot = 0.1 * (rnd(i, j, sd + 7) - 0.5) + (i + j) * 0.03, st = 7 + Math.floor(rnd(j, i, sd) * 5);
         carpet(cx, cz, cs * 0.5, cs * 0.5, rot, 9, () => 0.012 * U, () => [0.7, 0.66, 0.5]);
-        carpet(cx, cz, cs * 0.48, cs * 0.48, rot, 12, (a, b) => (0.03 + 0.018 * Math.sin(b * st * 2)) * U, (a, b) => mix3(mul3(A, 0.78), A, 0.5 + 0.5 * Math.sin(b * st * 2))); }
+        carpet(cx, cz, cs * 0.492, cs * 0.492, rot, 12, (a, b) => (0.03 + 0.018 * Math.sin(b * st * 2)) * U, (a, b) => mix3(mul3(A, 0.78), A, 0.5 + 0.5 * Math.sin(b * st * 2))); }
       const hx = x + 1.3 * cs, hz = z + 1.0 * cs; bld(hx, hz, 0.2 * U, 0.1 * U, 0.14 * U, 0.3, [0.76, 0.7, 0.52], [0.5, 0.64, 0.2], { chim: 0, rh: 0.08 * U });
       const gx = hx + 0.2 * U, gz = hz + 0.05 * U, gy = Y(gx, gz); cyl(gx, gy - 0.1, gz, 0.045 * U, 0.08 * U, [0.8, 0.7, 0.5], 10, {}); blob([gx, gy + 0.08 * U, gz], [0.05 * U, 0.04 * U, 0.05 * U], [0.52, 0.66, 0.22], { la: 4, lo: 8 }); };
     const farmstead = (x, z, sd) => { const P = (dx, dz) => [x + dx * U, z + dz * U];
