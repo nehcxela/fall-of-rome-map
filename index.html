@@ -1725,8 +1725,10 @@ Promise.resolve(window.__MD).then(d => {
     if (want) {
       if (!D) return;
       if (!box) { try { setup(); } catch (e) { alert('The 3D view could not start: ' + e.message); return; } }
+      for (const c of document.querySelectorAll('#layers input[id^="L-"]')) if (!c.checked && /L-(cities|res|imp|rivers|roads|units)$/.test(c.id)) { c.checked = true; c.dispatchEvent(new Event('change')); }
+      document.getElementById('layers').style.display = 'none';
       box.classList.add('on'); view.classList.add('is3d'); btn.textContent = '2D'; resize();
-    } else { btn.textContent = '3D'; box.classList.remove('on'); view.classList.remove('is3d'); }
+    } else { document.getElementById('layers').style.display = ''; btn.textContent = '3D'; box.classList.remove('on'); view.classList.remove('is3d'); }
     btn.setAttribute('aria-pressed', want ? 'true' : 'false');
   });
 })();
