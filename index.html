@@ -1128,6 +1128,50 @@ Promise.resolve(window.__MD).then(d => {
         if (o.tusk && sg) limb(add3(mix3(ne, he, 0.8), mul3(sv, sg * hr * 0.5)), add3(mix3(ne, he, 0.95), add3(mul3(sv, sg * hr * 0.8), add3(mul3(f, 0.08 * U), [0, -0.01 * U, 0]))), 0.013 * U, [0.95, 0.93, 0.86], { la: 2 }); }
       if (o.trunk) { let S = add3(he, [0, -0.02 * U, 0]), dir = f, pitch = -0.2; for (let k = 0; k < 5; k++) { pitch -= 0.32; const dd = [f[0] * Math.cos(pitch), Math.sin(pitch), f[2] * Math.cos(pitch)], E = add3(S, mul3(dd, 0.085 * U)); limb(S, E, (0.05 - k * 0.006) * U, o.hc, { la: 3, lo: 6 }); S = E; } void dir; }
       if (o.tail) { const t = o.tail, tb = P(-L * 0.5, lg + H * 0.7, 0); if (t[2]) blob(add3(tb, mul3(f, -t[0] * U * 0.4)), [t[0] * U * 0.5, t[0] * U * 0.16, t[0] * U * 0.16], t[1], { dir: add3(f, [0, -0.3, 0]), la: 4, lo: 6, c2: t[3], sp: 0.3 }); else limb(tb, add3(tb, add3(mul3(f, -0.03 * U), [0, -t[0] * U, 0])), 0.01 * U, t[1], { la: 2 }); } };
+    // ---- animals as single smooth extruded silhouettes (signed-distance outline, rounded cross-section), not stacks of primitives
+    const vn = (x, y, s) => { const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, a = fx * fx * (3 - 2 * fx), b = fy * fy * (3 - 2 * fy); return (rnd(i, j, s) * (1 - a) + rnd(i + 1, j, s) * a) * (1 - b) + (rnd(i, j + 1, s) * (1 - a) + rnd(i + 1, j + 1, s) * a) * b; };
+    const FT = {};
+    const spec = o => { const P = [], L = o.L, H = o.H, W = o.W, lg = o.lg, col = o.col, lc = o.lc || mul3(col, 0.72), hc = o.hc || col, dk = [0.14, 0.11, 0.09];
+      const ell = (cx, cy, rx, ry, w, c, ex) => P.push(Object.assign({ t: 'e', c: [cx, cy], rx, ry, w, col: c, z: 0, rot: 0 }, ex || {}));
+      const seg = (ax, ay, bx, by, r, w, c, ex) => P.push(Object.assign({ t: 's', a: [ax, ay], b: [bx, by], r, w, col: c, z: 0 }, ex || {}));
+      const bx = { spot: o.sp ? 1 : 0, wool: o.wool ? 1 : 0 };
+      ell(0, lg + H * 0.5, L * 0.5, H * 0.5, W * 0.5, col, bx); ell(L * 0.22, lg + H * 0.52, L * 0.3, H * 0.54, W * 0.52, col, bx); ell(-L * 0.24, lg + H * 0.54, L * 0.3, H * 0.5, W * 0.48, col, bx);
+      if (o.wool) for (let k = 0; k < 5; k++) ell((k - 2) * L * 0.18, lg + H * 0.78, L * 0.17, H * 0.3, W * 0.42, col, { wool: 1 });
+      const lr = o.legR * 1.15, zl = W * 0.36;
+      for (const sg of [1, -1]) for (const [fx, st] of [[0.32, 1], [-0.32, -1]]) { const hx = L * fx + sg * st * 0.012, kx = hx - (fx < 0 ? 0.03 : -0.005) + sg * 0.012, fxx = hx + sg * (fx > 0 ? 0.025 : -0.02) * st;
+        seg(hx, lg + H * 0.38, kx, lg * 0.5, lr, lr, lc, { z: sg * zl }); seg(kx, lg * 0.5, fxx, 0.016, lr * 0.8, lr * 0.8, lc, { z: sg * zl }); seg(fxx, 0.02, fxx + 0.004, 0.008, lr * 0.95, lr * 0.95, dk, { z: sg * zl }); }
+      const nb = [L * 0.38, lg + H * 0.62], na = o.neck[1], nd = [Math.cos(na), Math.sin(na)], ne = [nb[0] + nd[0] * o.neck[0], nb[1] + nd[1] * o.neck[0]];
+      seg(nb[0] - 0.02, nb[1], ne[0], ne[1], o.neck[2], o.neck[2] * 0.95, col);
+      if (o.mane) seg(nb[0] - 0.02, nb[1] + o.neck[2] * 0.8, ne[0] - 0.01, ne[1] + o.neck[2] * 0.7, o.neck[2] * 0.35, o.neck[2] * 0.5, o.mane);
+      const ha = o.head[1], hd = [Math.cos(ha), Math.sin(ha)], he = [ne[0] + hd[0] * o.head[0], ne[1] + hd[1] * o.head[0]], hr = o.head[2], hm = [(ne[0] + he[0]) / 2 + hd[0] * 0.01, (ne[1] + he[1]) / 2 + hd[1] * 0.01];
+      ell(hm[0], hm[1], o.head[0] * 0.62, hr, hr * 0.9, hc, { rot: ha });
+      if (o.snout) ell(ne[0] + hd[0] * o.head[0] * 0.92, ne[1] + hd[1] * o.head[0] * 0.92, o.head[0] * 0.22, hr * 0.72, hr * 0.7, o.snout, { rot: ha });
+      for (const sg of [1, -1]) { const ep = [ne[0] + hd[0] * o.head[0] * 0.15, ne[1] + hd[1] * o.head[0] * 0.15 + hr * 0.9];
+        if (o.ear) ell(ep[0] - 0.01, ep[1] + 0.012, 0.02, 0.04, 0.01, hc, { rot: 1.2, z: sg * hr * 0.85 });
+        if (o.bigEar) ell(ne[0] - 0.01, ne[1] - hr * 0.2, 0.11, 0.13, 0.018, mul3(hc, 0.92), { z: sg * hr * 1.1 });
+        if (o.horn) seg(ep[0], ep[1], ep[0] - 0.005, ep[1] + 0.05, 0.01, 0.01, [0.9, 0.88, 0.8], { z: sg * hr * 0.75 });
+        if (o.ant) { const A = [0.84, 0.78, 0.64], z = sg * hr * 0.55; seg(ep[0], ep[1], ep[0] - 0.05, ep[1] + 0.1, 0.006, 0.006, A, { z }); seg(ep[0] - 0.025, ep[1] + 0.05, ep[0] + 0.03, ep[1] + 0.11, 0.004, 0.004, A, { z }); seg(ep[0] - 0.05, ep[1] + 0.1, ep[0] - 0.1, ep[1] + 0.16, 0.004, 0.004, A, { z }); }
+        if (o.tusk) seg(he[0] - 0.03, he[1] - hr * 0.6, he[0] + 0.09, he[1] - hr * 0.2, 0.013, 0.013, [0.95, 0.93, 0.86], { z: sg * hr * 0.8 }); }
+      if (o.trunk) { let S = [he[0] + 0.01, he[1] - 0.02], pt = -0.2; for (let k = 0; k < 5; k++) { pt -= 0.32; const E = [S[0] + Math.cos(pt) * 0.085, S[1] + Math.sin(pt) * 0.085], r = 0.05 - k * 0.007; seg(S[0], S[1], E[0], E[1], r, r, hc); S = E; } }
+      if (o.tail) { const t = o.tail, tb = [-L * 0.5, lg + H * 0.7]; if (t[2]) ell(tb[0] - t[0] * 0.35, tb[1] - t[0] * 0.1, t[0] * 0.5, t[0] * 0.17, t[0] * 0.17, t[1], { rot: -0.4, tip: t[3] || null }); else seg(tb[0], tb[1], tb[0] - 0.03, tb[1] - t[0], 0.01, 0.01, t[1]); }
+      return P; };
+    const sdf = (p, x, y, wl) => { let d; if (p.t === 's') { const ax = p.a[0], ay = p.a[1], bx = p.b[0] - ax, by = p.b[1] - ay, px = x - ax, py = y - ay, h = Math.max(0, Math.min(1, (px * bx + py * by) / (bx * bx + by * by || 1))); d = Math.hypot(px - bx * h, py - by * h) - p.r; } else { const c = Math.cos(p.rot), s = Math.sin(p.rot), dx = x - p.c[0], dy = y - p.c[1], u = dx * c + dy * s, v = -dx * s + dy * c; d = (Math.hypot(u / p.rx, v / p.ry) - 1) * Math.min(p.rx, p.ry); } return d; };
+    const mkFauna = (name, o) => { const P = spec(o), h = 0.0125, K = 0.011, zs = [...new Set(P.map(p => p.z))], out = { p: [], n: [], c: [], i: [] }, c2 = o.c2, sp = o.sp;
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const p of P) { const pts = p.t === 's' ? [p.a, p.b] : [p.c], r = p.t === 's' ? p.r : Math.max(p.rx, p.ry); for (const q of pts) { x0 = Math.min(x0, q[0] - r); x1 = Math.max(x1, q[0] + r); y0 = Math.min(y0, q[1] - r); y1 = Math.max(y1, q[1] + r); } }
+      x0 -= h * 2; y0 -= h * 2; const nx = Math.ceil((x1 - x0) / h) + 3, ny = Math.ceil((y1 - y0) / h) + 3;
+      for (const zc of zs) { const pr = P.filter(p => p.z === zc), D = new Float32Array(nx * ny), T = new Float32Array(nx * ny), WD = new Float32Array(nx * ny), CC = new Array(nx * ny);
+        for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const x = x0 + i * h, y = y0 + j * h; let sw = 0, sd = 0, sW = 0, cr = 0, cg = 0, cb = 0, tipw = 0;
+          for (const p of pr) { let d = sdf(p, x, y); if (p.wool) d += 0.016 * (vn(x * 55, y * 55, 3) - 0.5) * 2; const w = Math.exp(-d / K); sw += w; sW += w * p.w; let c = p.col; if (p.spot && c2) c = vn(x * 11 + 3, y * 11, 9) > 1 - sp ? c2 : c; if (p.tip && x < p.c[0] - p.rx * 0.2) c = p.tip; cr += w * c[0]; cg += w * c[1]; cb += w * c[2]; }
+          const dd = -K * Math.log(sw + 1e-30), q = -dd, wid = sW / (sw + 1e-30); D[j * nx + i] = dd; WD[j * nx + i] = wid; if (dd < 0) { const f = Math.min(1, q / wid); T[j * nx + i] = wid * Math.sqrt(Math.max(0, 1 - (1 - f) * (1 - f))); } CC[j * nx + i] = [cr / sw, cg / sw, cb / sw]; }
+        const ok = k => D[k] < h * 1.1, base = out.p.length / 3, id = new Int32Array(nx * ny * 2).fill(-1);
+        for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) { const k = j * nx + i; if (!ok(k)) continue; const x = x0 + i * h, y = y0 + j * h, t = D[k] < 0 ? T[k] * Math.min(1, -D[k] / (1.3 * h)) : 0, gx = (D[k + 1] - D[k - 1]) / (2 * h), gy = (D[k + nx] - D[k - nx]) / (2 * h), gl = Math.hypot(gx, gy) || 1, fq = Math.min(1, Math.max(0, -D[k]) / (WD[k] || 1));
+          for (const sg of [1, -1]) { id[k * 2 + (sg > 0 ? 0 : 1)] = out.p.length / 3; out.p.push(x, y, zc + sg * t); out.n.push(gx / gl * (1 - fq), gy / gl * (1 - fq) + 0.3, sg * fq); const cc = CC[k], lt = 0.92 + 0.08 * (y / (y1 + 0.001)); out.c.push(cc[0] * lt, cc[1] * lt, cc[2] * lt); } }
+        for (let j = 1; j < ny - 2; j++) for (let i = 1; i < nx - 2; i++) { const k = j * nx + i, a = id[k * 2], b = id[(k + 1) * 2], c = id[(k + nx) * 2], d = id[(k + nx + 1) * 2]; if (a >= 0 && b >= 0 && c >= 0 && d >= 0) { out.i.push(a, b, c, b, d, c); const a2 = id[k * 2 + 1], b2 = id[(k + 1) * 2 + 1], c2_ = id[(k + nx) * 2 + 1], d2 = id[(k + nx + 1) * 2 + 1]; out.i.push(a2, c2_, b2, b2, c2_, d2); } } }
+      return out; };
+    const fauna = (name, x, z, yaw, o, sd) => { const T = FT[name] || (FT[name] = mkFauna(name, o)), y = Y(x, z) - 0.012 * U, f = [Math.cos(yaw), 0, Math.sin(yaw)], sv = [-Math.sin(yaw), 0, Math.cos(yaw)], sc = 0.94 + 0.12 * rnd(sd, 1, 4), base = M.v.length / 9, tint = 0.94 + 0.12 * rnd(sd, 2, 4);
+      for (let k = 0; k < T.p.length / 3; k++) { const lx = T.p[k * 3] * U * sc, ly = T.p[k * 3 + 1] * U * sc, lz = T.p[k * 3 + 2] * U * sc, nx = T.n[k * 3], ny = T.n[k * 3 + 1], nz = T.n[k * 3 + 2];
+        vert([x + f[0] * lx + sv[0] * lz, y + ly, z + f[2] * lx + sv[2] * lz], [f[0] * nx + sv[0] * nz, ny, f[2] * nx + sv[2] * nz], [Math.min(1, T.c[k * 3] * tint), Math.min(1, T.c[k * 3 + 1] * tint), Math.min(1, T.c[k * 3 + 2] * tint)]); }
+      for (let k = 0; k < T.i.length; k++) M.i.push(base + T.i[k]); };
     const LAY = { Cattle: [[-0.3, 0.18, 0.4], [0.05, -0.32, 2.8], [0.32, 0.22, 5.4]], Horses: [[-0.35, 0.05, 0.3], [0.05, -0.34, 3.4], [0.3, 0.3, 5.9], [0.28, -0.05, 1.5]], Sheep: [[-0.3, 0.1, 0.5], [0.12, -0.3, 2.6], [0.28, 0.22, 5.2]], Deer: [[-0.35, 0.1, 0.3], [0.1, -0.35, 3.9], [0.3, 0.25, 5.5]], Furs: [[-0.25, 0.1, 0.3], [0.1, -0.25, 3.5], [0.25, 0.25, 5.4]], Ivory: [[0, 0, 0.9]], Truffles: [[-0.3, 0.1, 0.5], [0.1, -0.3, 2.6], [0.3, 0.22, 5.2]] };
     // ---- plants, rocks, crystals
     const onBlob = (c, r, sd, k) => { const a = rnd(sd, k, 1) * 6.2832, b = 0.2 + 0.75 * rnd(sd, k, 2); return [c[0] + Math.cos(a) * Math.sin(b * 1.4) * r[0] * 1.02, c[1] + Math.cos(b * 1.4) * r[1], c[2] + Math.sin(a) * Math.sin(b * 1.4) * r[2] * 1.02]; };
@@ -1149,7 +1193,7 @@ Promise.resolve(window.__MD).then(d => {
       for (let k = 0; k < 6; k++) { const a = a0 + k / 6 * 6.2832; B.push([x + Math.cos(a) * r, y, z + Math.sin(a) * r]); T.push([x + Math.cos(a) * r * 0.8, y + h * 0.72, z + Math.sin(a) * r * 0.8]); } for (let k = 0; k < 6; k++) { fq(B[k], B[(k + 1) % 6], T[(k + 1) % 6], T[k], [lc, lc, hc, hc], ref); ft(T[k], T[(k + 1) % 6], tip, hc, ref); } };
     const waterY = (x, z) => Y(x, z) + 0.45;
     const resModel = (name, x, z, seed, opt) => { opt = opt || {}; const sd = seed % 97;
-      if (ANI[name]) { LAY[name].forEach(([dx, dz, yw], k) => beast(x + dx * U + (rnd(seed, k, 1) - 0.5) * 0.06 * U, z + dz * U, yw, ANI[name], sd + k * 11)); return; }
+      if (ANI[name]) { LAY[name].forEach(([dx, dz, yw], k) => fauna(name, x + dx * U + (rnd(seed, k, 1) - 0.5) * 0.06 * U, z + dz * U, yw, ANI[name], sd + k * 11)); return; }
       if (name === 'Wheat') { const nz = (px, pz) => 0.5 + 0.28 * Math.sin(px / U * 9 + pz / U * 4 + sd) + 0.22 * Math.sin(pz / U * 11 - px / U * 5 + sd * 2);
         carpet(x, z, 0.62 * U, 0.62 * U, 0, 22, (a, b, px, pz) => (0.045 + 0.06 * nz(px, pz) * (0.6 + 0.8 * rnd(Math.floor(px), Math.floor(pz), sd))) * U, (a, b, px, pz) => { const t = Math.max(0, Math.min(1, nz(px * 1.3, pz * 1.3) + 0.25 * (rnd(Math.floor(px * 2), Math.floor(pz * 2), sd) - 0.5))); return mix3([0.82, 0.56, 0.2], [0.97, 0.82, 0.34], t); }, 'circle');
         for (const [dx, dz] of spots(opt.few ? 40 : 55, 0.08, 0.54, seed)) { const px = x + dx * U, pz = z + dz * U, hgt = (0.085 + 0.05 * rnd(px, pz, 1)) * U; limb([px, Y(px, pz) + 0.04 * U, pz], [px + (rnd(px, 1, 2) - 0.5) * 0.02 * U, Y(px, pz) + 0.04 * U + hgt, pz], 0.008 * U, rnd(px, pz, 3) < 0.5 ? [0.96, 0.8, 0.32] : [0.93, 0.62, 0.22], { la: 3, lo: 5 }); } return; }
