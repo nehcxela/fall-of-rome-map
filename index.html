@@ -460,7 +460,7 @@ const ptrs = new Map(); let moved = 0, pinch = null, downAt = null;
 view.addEventListener('pointerdown', e => {
   if (e.target.closest && e.target.closest('button, select, input, a')) return;
   if (e.target.closest('#card, .zoom, #turns, #army, #uu, #key')) return;
-  view.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (!view.classList.contains('is3d')) view.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
   if (ptrs.size === 1) { moved = 0; downAt = [e.clientX, e.clientY]; view.classList.add('dragging'); }
   if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] }; moved = 99; }
 });
